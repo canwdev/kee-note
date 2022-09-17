@@ -147,6 +147,9 @@ export class KdbxHelper {
    */
   getEntryDetail(uuid) {
     const entry = this.getEntry(uuid)
+    if (!entry) {
+      throw new Error(`entry ${uuid} not found`)
+    }
     return new EntryItem(entry, true)
   }
 

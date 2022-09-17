@@ -1,16 +1,8 @@
 <script lang="ts">
 import {defineComponent, ref} from 'vue'
-import {
-  FormInst,
-  FormItemInst,
-  FormItemRule,
-  FormValidationError,
-  useMessage,
-  FormRules,
-} from 'naive-ui'
+import {FormInst, FormValidationError, useMessage, FormRules} from 'naive-ui'
 import {userLogin, userProfile} from '@/api'
 import {LS_KEY_AUTHORIZATION} from '@/enum'
-import cookies from 'js-cookie'
 import {useRouter} from 'vue-router'
 import globalEventBus, {GlobalEvents} from '@/utils/bus'
 
