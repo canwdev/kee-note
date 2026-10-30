@@ -1,5 +1,4 @@
 <script lang="ts">
-import {DataTableColumns, DataTableRowKey, NButton, NIcon, NDataTable, NDropdown} from 'naive-ui'
 import {EntryItem} from '@/enum/kdbx'
 import {useRouter} from 'vue-router'
 import {formatDate} from '@/utils'
@@ -8,16 +7,20 @@ import {useKeeNoteEntryList} from '@/hooks/use-keenote'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import {useCommonActions} from '@/components/NoteViews/use-common-actions'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
+import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
 import {MoreVertical20Regular} from '@vicons/fluent'
 
 export default defineComponent({
   components: {
     DialogGroupSelect,
     DialogEntryPreview,
+    ContextMenu,
+    IconDisplay,
+    MoreVertical20Regular,
   },
   setup() {
     const router = useRouter()
-    const checkedRowKeys = ref<DataTableRowKey[]>([])
+    const checkedRowKeys = ref<string[]>([])
     const {entryList, getEntryList, keeStore, groupUuid} = useKeeNoteEntryList({
       cleanupFn: () => {
         checkedRowKeys.value = []
@@ -35,110 +38,40 @@ export default defineComponent({
       ...contextMenuEtc
     } = useCommonActions({getEntryList, checkedRowKeys})
 
-    const createColumns = (): DataTableColumns<EntryItem> => {
-      return [
-        {
-          type: 'selection',
-        },
-        {
-          title: '',
-          key: 'icon',
-          align: 'center',
-          width: 50,
-          render(row, index) {
-            return h(IconDisplay, {
-              onClick: (e: Event) => {
-                e.stopPropagation()
-                nodeAction(row, () => {
-                  isShowPreviewModal.value = true
-                })
-              },
-              icon: row.icon,
-              bgColor: row.bgColor,
-              fgColor: row.fgColor,
-              size: 24,
-            })
-          },
-          sorter: {
-            compare: (a: any, b: any) => a.icon - b.icon,
-            multiple: 4,
-          },
-        },
-        {
-          title: 'Title',
-          key: 'title',
-          sorter: {
-            compare: (a: any, b: any) => {
-              return a.title.localeCompare(b.title)
-            },
-            multiple: 3,
-          },
-          ellipsis: {
-            tooltip: true,
-          },
-          minWidth: 160,
-        },
-        {
-          title: 'Created',
-          key: 'creationTime',
-          ellipsis: {
-            tooltip: true,
-          },
-          width: 160,
-          render(row, index) {
-            return h('span', {}, formatDate(new Date(row.creationTime)))
-          },
-          sorter: {
-            compare: (a: any, b: any) => a.creationTime - b.creationTime,
-            multiple: 1,
-          },
-        },
-        {
-          title: 'Updated',
-          key: 'lastModTime',
-          ellipsis: {
-            tooltip: true,
-          },
-          width: 160,
-          render(row, index) {
-            return h('span', {}, formatDate(new Date(row.lastModTime)))
-          },
-          sorter: {
-            compare: (a: any, b: any) => a.lastModTime - b.lastModTime,
-            multiple: 2,
-          },
-        },
-        {
-          title: 'Action',
-          key: 'actions',
-          fixed: 'right',
-          render(row) {
-            return h(
-              NDropdown,
-              {
-                options: getMenuOptions(row),
-                keyField: 'label',
-              },
-              {
-                default: () =>
-                  h(
-                    NButton,
-                    {
-                      onClick: (e: Event) => {
-                        e.stopPropagation()
-                      },
-                      quaternary: true,
-                      size: 'small',
-                    },
-                    {default: () => h(NIcon, {size: 20}, () => h(MoreVertical20Regular))},
-                  ),
-              },
-            )
-          },
-          align: 'center',
-          width: 70,
-        },
-      ]
+    const page = ref(1)
+    const pageSize = ref(10)
+
+    watch(
+      () => entryList.value,
+      () => {
+        page.value = 1
+      },
+    )
+
+    const pagedEntries = computed(() => {
+      const start = (page.value - 1) * pageSize.value
+      return entryList.value.slice(start, start + pageSize.value)
+    })
+
+    const handleMenuCommand = (item: any) => {
+      item?.props?.onClick?.()
+    }
+
+    const handleRowClick = (row: EntryItem, column: any) => {
+      if (column?.type === 'selection') {
+        return
+      }
+      keeStore.detailUuid = row.uuid
+    }
+
+    const handleSelectionChange = (rows: EntryItem[]) => {
+      checkedRowKeys.value = rows.map((row) => row.uuid)
+    }
+
+    const handlePreviewRow = (row: EntryItem) => {
+      nodeAction(row, () => {
+        isShowPreviewModal.value = true
+      })
     }
 
     onMounted(() => {
@@ -147,46 +80,11 @@ export default defineComponent({
       }
     })
 
-    const paginationReactive = reactive({
-      page: 1,
-      pageSize: 10,
-      showSizePicker: true,
-      pageSizes: [5, 10, 20, 50, 100, 200, 500, 1000],
-      onChange: (page: number) => {
-        paginationReactive.page = page
-      },
-      onUpdatePageSize: (pageSize: number) => {
-        paginationReactive.pageSize = pageSize
-        paginationReactive.page = 1
-      },
-      prefix: () => h('span', 'Total: ' + entryList.value.length),
-    })
-
-    const columns = createColumns()
-    const rowProps = (row: EntryItem) => {
-      return {
-        style: 'cursor: pointer;',
-        onClick: (e, a) => {
-          if (e.target.closest('.n-checkbox-box-wrapper')) {
-            return
-          }
-
-          keeStore.detailUuid = row.uuid
-        },
-        onContextmenu: (e: MouseEvent) => {
-          handleContextmenu(e, row)
-        },
-      }
-    }
-
-    const tableRef = ref()
-
     return {
-      tableRef,
       entryList,
-      columns,
-      rowProps,
-      paginationReactive,
+      pagedEntries,
+      page,
+      pageSize,
       groupUuid,
       editingNode,
       nodeAction,
@@ -196,10 +94,12 @@ export default defineComponent({
       isShowPreviewModal,
       handleSelectGroup,
       checkedRowKeys,
-      handleCheck(rowKeys: DataTableRowKey[]) {
-        checkedRowKeys.value = rowKeys
-      },
+      handleSelectionChange,
+      handleRowClick,
+      handleMenuCommand,
+      handlePreviewRow,
       getMenuOptions,
+      formatDate,
     }
   },
 })
@@ -207,45 +107,94 @@ export default defineComponent({
 
 <template>
   <div class="note-list-view">
-    <n-scrollbar trigger="none" x-scrollable>
-      <div class="content-padding">
-        <n-data-table
-          size="small"
-          ref="tableRef"
-          class="note-list-table"
-          :columns="columns"
-          :rowProps="rowProps"
-          :data="entryList"
-          :pagination="paginationReactive"
-          :bordered="false"
-          max-height="72vh"
-          :row-key="(row) => row.uuid"
-          :checked-row-keys="checkedRowKeys"
-          @update:checked-row-keys="handleCheck"
-        />
-      </div>
-      <n-collapse-transition :show="Boolean(checkedRowKeys.length)">
-        <n-dropdown :options="getMenuOptions(null)" key-field="label">
-          <n-button
-            type="primary"
-            size="small"
-            style="position: absolute; top: 5px; left: 34px; z-index: 10"
+    <div class="content-padding">
+      <el-table
+        size="small"
+        class="note-list-table"
+        :data="pagedEntries"
+        row-key="uuid"
+        max-height="72vh"
+        @selection-change="handleSelectionChange"
+        @row-click="handleRowClick"
+        @row-contextmenu="(row, column, event) => handleContextmenu(event, row)"
+      >
+        <el-table-column type="selection" width="44" />
+        <el-table-column width="60" align="center">
+          <template #default="{row}">
+            <IconDisplay
+              :icon="row.icon"
+              :bg-color="row.bgColor"
+              :fg-color="row.fgColor"
+              :size="24"
+              @click.stop="handlePreviewRow(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="title" label="Title" sortable min-width="160" show-overflow-tooltip />
+        <el-table-column prop="creationTime" label="Created" sortable width="180" show-overflow-tooltip>
+          <template #default="{row}">{{ formatDate(new Date(row.creationTime)) }}</template>
+        </el-table-column>
+        <el-table-column prop="lastModTime" label="Updated" sortable width="180" show-overflow-tooltip>
+          <template #default="{row}">{{ formatDate(new Date(row.lastModTime)) }}</template>
+        </el-table-column>
+        <el-table-column label="Action" width="70" align="center" fixed="right">
+          <template #default="{row}">
+            <el-dropdown trigger="click" @command="handleMenuCommand">
+              <el-button text size="small" @click.stop>
+                <el-icon :size="20"><MoreVertical20Regular /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="(opt, index) in getMenuOptions(row)"
+                    :key="index"
+                    :command="opt"
+                  >
+                    {{ opt.label }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        class="note-list-pagination"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :page-sizes="[5, 10, 20, 50, 100, 200, 500, 1000]"
+        :total="entryList.length"
+        layout="total, sizes, prev, pager, next"
+        size="small"
+        background
+      />
+    </div>
+
+    <el-dropdown v-if="checkedRowKeys.length" trigger="click" @command="handleMenuCommand">
+      <el-button type="primary" size="small" class="batch-actions-button">
+        Batch Actions ({{ checkedRowKeys.length }})
+      </el-button>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item
+            v-for="(opt, index) in getMenuOptions(null)"
+            :key="index"
+            :command="opt"
           >
-            Batch Actions ({{ checkedRowKeys.length }})
-          </n-button>
-        </n-dropdown>
-      </n-collapse-transition>
-    </n-scrollbar>
-    <n-dropdown
-      trigger="manual"
-      placement="bottom-start"
+            {{ opt.label }}
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
+    <ContextMenu
       :show="showRightMenu"
-      :options="rightMenuOptions"
       :x="xRef"
       :y="yRef"
+      :options="rightMenuOptions"
       @select="handleSelect"
-      key-field="label"
-      :on-clickoutside="handleClickOutside"
+      @close="handleClickOutside"
     />
 
     <DialogGroupSelect
@@ -265,8 +214,19 @@ export default defineComponent({
 .note-list-view {
   position: relative;
   height: 100%;
+  overflow: auto;
   user-select: none;
-  .note-list-table {
+
+  .note-list-pagination {
+    margin-top: var(--vgo-space-2);
+    justify-content: flex-end;
+  }
+
+  .batch-actions-button {
+    position: absolute;
+    top: 5px;
+    left: 34px;
+    z-index: 10;
   }
 }
 </style>

@@ -1,9 +1,9 @@
 <script lang="ts">
-import {kService} from '@/api'
-import {EntryItem} from '@/enum/kdbx'
+import { kService } from '@/api'
+import { EntryItem } from '@/enum/kdbx'
 import keepassIcons from '@/assets/icons'
-import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
-import {useBeforeUnload, useUnSavedChanges} from '@/hooks/use-changed'
+import globalEventBus, { GlobalEvents, saveDatabaseAsync } from '@/utils/bus'
+import { useBeforeUnload } from '@/hooks/use-changed'
 import MarkdownEditor from '@/components/NoteViews/Detail/MarkdownEditor.vue'
 import DialogEntryIconColor from '@/components/NoteViews/Dialogs/DialogEntryIconColor.vue'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
@@ -18,11 +18,11 @@ import {
   TextboxMore20Filled,
 } from '@vicons/fluent'
 import AttachmentBox from '@/components/NoteViews/Detail/AttachmentBox.vue'
-import {getEntryItemUpdateParams} from '@/utils/export-import'
-import {useEditorSettingsStore} from '@/store/editor'
-import {useKeeStore} from '@/store/kee-store'
-import {useSettingsStore} from '@/store/settings'
-import {useKeeNoteSaveClose} from '@/hooks/use-keenote'
+import { getEntryItemUpdateParams } from '@/utils/export-import'
+import { useEditorSettingsStore } from '@/store/editor'
+import { useKeeStore } from '@/store/kee-store'
+import { useSettingsStore } from '@/store/settings'
+import { useKeeNoteSaveClose } from '@/hooks/use-keenote'
 
 export default defineComponent({
   name: 'DetailView',
@@ -49,7 +49,7 @@ export default defineComponent({
 
     const editorSettingsStore = useEditorSettingsStore()
 
-    const {commonSaveDatabase} = useKeeNoteSaveClose()
+    const { commonSaveDatabase } = useKeeNoteSaveClose()
 
     onMounted(() => {
       getEntryDetail(true)
@@ -83,11 +83,11 @@ export default defineComponent({
     }
 
     const getEntryDetail = async (isFocus = false) => {
-      entryDetail.value = await kService.getEntryDetail({uuid: keeStore.detailUuid})
+      entryDetail.value = await kService.getEntryDetail({ uuid: keeStore.detailUuid })
       nextTick(() => {
         keeStore.isChanged = false
         if (isFocus) {
-          titleInputRef.value.focus()
+          titleInputRef.value?.focus()
         }
       })
     }
@@ -98,7 +98,7 @@ export default defineComponent({
       if (!val) {
         return
       }
-      const {creationTime, lastModTime} = val
+      const { creationTime, lastModTime } = val
       entryDetailTimes[0] = new Date(creationTime).getTime()
       entryDetailTimes[1] = new Date(lastModTime).getTime()
     })
@@ -108,7 +108,7 @@ export default defineComponent({
       () => {
         keeStore.isChanged = true
       },
-      {deep: true},
+      { deep: true },
     )
 
     const handleSave = async () => {
@@ -136,25 +136,22 @@ export default defineComponent({
     }
 
     // 处理不同保存条件下的按钮样式
-    const saveBtnInfo = computed(() => {
+    const saveBtnInfo = computed((): any => {
       if (settingsStore.enableAutoSave || keeStore.isChanged) {
         return {
-          quaternary: true,
           disabled: !keeStore.isChanged,
           label: settingsStore.enableAutoSave ? 'Save' : 'Done',
         }
       }
       if (keeStore.isNotSave) {
         return {
-          secondary: true,
-          strong: true,
           type: 'primary',
+          plain: false,
           disabled: false,
           label: 'Save',
         }
       }
       return {
-        quaternary: true,
         disabled: true,
         label: 'Done',
       }
@@ -171,7 +168,7 @@ export default defineComponent({
     const isShowIconEdit = ref(false)
     const isShowPreviewModal = ref(false)
 
-    const menuOptions = computed(() => {
+    const menuOptions = computed((): any[] => {
       return [
         {
           label: '🔰 Preview (Ctrl+/)',
@@ -200,6 +197,10 @@ export default defineComponent({
       ].filter(Boolean)
     })
 
+    const handleMenuCommand = (item: any) => {
+      item?.props?.onClick?.()
+    }
+
     const titleInputRef = ref()
 
     const handleBack = () => {
@@ -218,7 +219,7 @@ export default defineComponent({
           onPositiveClick: () => {
             back()
           },
-          onNegativeClick: () => {},
+          onNegativeClick: () => { },
         })
         return
       }
@@ -233,6 +234,7 @@ export default defineComponent({
       handleBack,
       entryDetailTimes,
       handleSave,
+      handleMenuCommand,
       commonSaveDatabase,
       keepassIcons,
       complexEditorRef,
@@ -252,179 +254,108 @@ export default defineComponent({
 
 <template>
   <div class="detail-view">
-    <n-layout class="layout-inner-root">
-      <n-layout-header class="detail-header" bordered>
-        <n-space align="center" justify="space-between" class="header-space">
-          <n-button quaternary @click="handleBack">
-            <n-icon size="18"> <ArrowLeft16Regular /> </n-icon>&nbsp;Back</n-button
-          >
+    <div class="layout-inner-root">
+      <div class="detail-header">
+        <div class="header-space">
+          <el-button text @click="handleBack">
+            <el-icon :size="18">
+              <ArrowLeft16Regular />
+            </el-icon>&nbsp;Back
+          </el-button>
 
           <div class="entry-title" v-if="entryDetail">
-            <n-dropdown
-              :options="menuOptions"
-              key-field="label"
-              placement="bottom-start"
-              trigger="hover"
-            >
-              <n-button size="small" quaternary @click="isShowIconEdit = true">
-                <IconDisplay
-                  :icon="entryDetail.icon"
-                  :bg-color="entryDetail.bgColor"
-                  :fg-color="entryDetail.fgColor"
-                />
+            <el-dropdown trigger="hover" @command="handleMenuCommand">
+              <el-button size="small" text @click="isShowIconEdit = true">
+                <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor" :fg-color="entryDetail.fgColor" />
                 <span v-if="keeStore.isChanged">* </span>
-              </n-button>
-            </n-dropdown>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-for="(item, index) in menuOptions" :key="index" :command="item">
+                    {{ item.label }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
 
-          <n-space size="small" align="center">
-            <!--            保存当前编辑的内容-->
-            <n-button
-              :type="saveBtnInfo.type"
-              :secondary="saveBtnInfo.secondary"
-              :quaternary="saveBtnInfo.quaternary"
-              :strong="saveBtnInfo.strong"
-              :disabled="saveBtnInfo.disabled"
-              @click="handleSave"
-            >
-              <n-icon size="18"> <Save20Regular /> </n-icon>&nbsp;{{ saveBtnInfo.label }}
-            </n-button>
+          <div class="vgo-u-flex-wrap-center">
+            <el-button :type="saveBtnInfo.type" :text="saveBtnInfo.text" :plain="saveBtnInfo.plain"
+              :disabled="saveBtnInfo.disabled" @click="handleSave">
+              <el-icon :size="18">
+                <Save20Regular />
+              </el-icon>&nbsp;{{ saveBtnInfo.label }}
+            </el-button>
+          </div>
+        </div>
+      </div>
 
-            <!--            保存数据库-->
-            <!--            <n-button-->
-            <!--              strong-->
-            <!--              secondary-->
-            <!--              v-if="!settingsStore.enableAutoSave && keeStore.isNotSave && !keeStore.isChanged"-->
-            <!--              type="primary"-->
-            <!--              @click="commonSaveDatabase"-->
-            <!--            >-->
-            <!--              <n-icon size="20"> <Save20Regular /></n-icon>&nbsp;Save-->
-            <!--            </n-button>-->
-          </n-space>
-        </n-space>
-      </n-layout-header>
-
-      <div v-if="entryDetail && 'fieldsV2' in entryDetail" class="detail-card-wrap">
+      <div v-if="entryDetail && entryDetail.fieldsV2" class="detail-card-wrap">
         <div class="detail-card">
-          <n-space vertical class="detail-infos">
-            <n-space justify="space-between">
-              <n-space align="center">
-                <n-date-picker
-                  size="small"
-                  v-model:value="entryDetailTimes[0]"
-                  type="datetime"
-                  @update:value="keeStore.isChanged = true"
-                  title="Create Time"
-                >
-                  <template #date-icon>
-                    <n-icon size="18"> <CalendarAdd20Regular /> </n-icon>
-                  </template>
-                </n-date-picker>
-                <n-date-picker
-                  size="small"
-                  v-model:value="entryDetailTimes[1]"
-                  type="datetime"
-                  disabled
-                  title="Update Time"
-                >
-                  <template #date-icon>
-                    <n-icon size="18"> <CalendarEdit16Regular /> </n-icon>
-                  </template>
-                </n-date-picker>
-              </n-space>
-
-              <n-space size="small" align="center">
-                <n-button
-                  size="small"
-                  quaternary
-                  @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore"
-                  title="Toggle more details"
-                >
-                  <n-icon size="18">
-                    <TextboxMore20Filled v-if="editorSettingsStore.isShowMore" />
-                    <TextboxMore20Regular v-else />
-                  </n-icon>
-                </n-button>
-
-                <n-button
-                  size="small"
-                  quaternary
-                  v-if="editorSettingsStore.isAdvancedEditor"
-                  @click="showEditorSettings"
-                  title="Editor Settings"
-                >
-                  <n-icon size="18">
-                    <TextBoxSettings24Regular />
-                  </n-icon>
-                </n-button>
-              </n-space>
-            </n-space>
-
-            <n-input-group>
-              <n-input
-                size="small"
-                ref="titleInputRef"
-                autofocus
-                v-model:value="entryDetail.fieldsV2.Title"
-                type="text"
-                placeholder="Title"
-              >
-              </n-input>
-            </n-input-group>
-
-            <n-collapse-transition :show="entryDetail && editorSettingsStore.isShowMore">
-              <div class="extra-info">
-                <div class="extra-item">
-                  <label>Username</label>
-                  <n-input
-                    size="small"
-                    v-model:value="entryDetail.fieldsV2.UserName"
-                    placeholder=""
-                  />
-                </div>
-                <div class="extra-item">
-                  <label>Password</label>
-                  <n-input
-                    size="small"
-                    v-model:value="entryDetail.fieldsV2.Password"
-                    type="password"
-                    show-password-on="click"
-                    class="font-code"
-                  />
-                </div>
-                <div class="extra-item">
-                  <label>URL</label>
-                  <n-input size="small" v-model:value="entryDetail.fieldsV2.URL" placeholder="" />
-                </div>
+          <div class="detail-infos">
+            <div class="detail-info-row">
+              <div class="vgo-u-flex-wrap-center">
+                <el-date-picker size="small" v-model="entryDetailTimes[0]" type="datetime"
+                  @update:model-value="keeStore.isChanged = true" title="Create Time" />
+                <el-date-picker size="small" v-model="entryDetailTimes[1]" type="datetime" disabled
+                  title="Update Time" />
               </div>
 
-              <AttachmentBox :entry-detail="entryDetail" @dataUpdated="syncAndSave" />
-            </n-collapse-transition>
-          </n-space>
+              <div class="vgo-u-flex-wrap-center">
+                <el-button size="small" text @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore"
+                  title="Toggle more details">
+                  <el-icon :size="18">
+                    <TextboxMore20Filled v-if="editorSettingsStore.isShowMore" />
+                    <TextboxMore20Regular v-else />
+                  </el-icon>
+                </el-button>
 
-          <MarkdownEditor
-            ref="complexEditorRef"
-            v-if="editorSettingsStore.isAdvancedEditor"
-            v-model="entryDetail.fieldsV2.Notes"
-            @turnOff="editorSettingsStore.isAdvancedEditor = false"
-          />
-          <n-input
-            v-else
-            v-model:value="entryDetail.fieldsV2.Notes"
-            type="textarea"
-            placeholder="Input your Note here."
-            :autosize="{
-              minRows: 20,
-            }"
-            style="background-color: inherit !important"
-          />
+                <el-button size="small" text v-if="editorSettingsStore.isAdvancedEditor" @click="showEditorSettings"
+                  title="Editor Settings">
+                  <el-icon :size="18">
+                    <TextBoxSettings24Regular />
+                  </el-icon>
+                </el-button>
+              </div>
+            </div>
+
+            <el-input size="small" ref="titleInputRef" autofocus v-model="entryDetail.fieldsV2.Title" type="text"
+              placeholder="Title" />
+
+            <el-collapse-transition>
+              <div v-show="entryDetail && editorSettingsStore.isShowMore">
+                <div class="extra-info">
+                  <div class="extra-item">
+                    <label>Username</label>
+                    <el-input size="small" v-model="entryDetail.fieldsV2.UserName" placeholder="" />
+                  </div>
+                  <div class="extra-item">
+                    <label>Password</label>
+                    <el-input size="small" v-model="entryDetail.fieldsV2.Password" type="password" show-password
+                      class="vgo-u-font-code" />
+                  </div>
+                  <div class="extra-item">
+                    <label>URL</label>
+                    <el-input size="small" v-model="entryDetail.fieldsV2.URL" placeholder="" />
+                  </div>
+                </div>
+
+                <AttachmentBox :entry-detail="entryDetail" @dataUpdated="syncAndSave" />
+              </div>
+            </el-collapse-transition>
+          </div>
+
+          <MarkdownEditor ref="complexEditorRef" v-if="editorSettingsStore.isAdvancedEditor"
+            v-model="entryDetail.fieldsV2.Notes" @turnOff="editorSettingsStore.isAdvancedEditor = false" />
+          <el-input v-else v-model="entryDetail.fieldsV2.Notes" type="textarea" placeholder="Input your Note here."
+            :autosize="{ minRows: 20 }" style="background-color: inherit !important" />
         </div>
       </div>
 
       <DialogEntryIconColor v-model:visible="isShowIconEdit" :entry-detail="entryDetail" />
 
       <DialogEntryPreview v-model:visible="isShowPreviewModal" :preview-detail="entryDetail" />
-    </n-layout>
+    </div>
   </div>
 </template>
 
@@ -436,22 +367,32 @@ export default defineComponent({
   position: absolute;
   width: 100%;
   height: 100%;
+  background: var(--vgo-surface);
   $min_width: 800px;
 
   .detail-header {
+    border-bottom: 1px solid var(--vgo-border);
+
     .header-space {
       width: 100%;
       height: 100%;
       padding: 6px 24px;
       box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+
       @media screen and (max-width: $min_width) {
         padding: 2px;
       }
+
       @media screen and (max-height: 500px) {
         height: 10px;
         overflow: hidden;
         transition: all 0.3s;
         opacity: 0;
+
         &:hover {
           opacity: 1;
           height: 100%;
@@ -470,18 +411,18 @@ export default defineComponent({
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
   .layout-inner-root {
     height: 100%;
-    :deep(.n-layout-scroll-container) {
-      display: flex;
-      flex-direction: column;
-    }
+    display: flex;
+    flex-direction: column;
 
     .detail-card-wrap {
       flex: 1;
       overflow: auto;
       padding-top: 10px;
       padding-bottom: 5px;
+
       @media screen and (max-height: 500px) {
         padding-top: 0;
       }
@@ -501,15 +442,29 @@ export default defineComponent({
       @media screen and (max-width: 1200px) {
         margin-top: 10px;
       }
+
       @media screen and (max-height: 500px) {
         margin-top: 1px;
       }
+
       .detail-infos {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        .detail-info-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
         @media screen and (max-height: 500px) {
           height: 10px;
           overflow: hidden;
           transition: all 0.3s;
           opacity: 0;
+
           &:hover {
             margin-left: -5px;
             margin-right: -5px;
@@ -519,17 +474,22 @@ export default defineComponent({
             height: 100%;
           }
         }
+
         .extra-info {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           grid-template-rows: auto;
           gap: 10px;
+          padding-top: 10px;
+
           @media screen and (max-width: $min_width) {
             grid-template-columns: repeat(1, 1fr);
           }
+
           .extra-item {
             display: flex;
             align-items: center;
+
             label {
               margin-right: 5px;
               min-width: 70px;

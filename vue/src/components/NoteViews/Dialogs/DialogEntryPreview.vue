@@ -104,7 +104,7 @@ export default defineComponent({
         return `<img src="${href}" alt="${text}" title="${title}" />`
       }
 
-      htmlContent.value = marked.parse(detail.fieldsV2.Notes as string, {
+      htmlContent.value = marked.parse((detail.fieldsV2?.Notes as string) || '', {
         renderer: customRenderer,
       })
       entryDetail.value = detail
@@ -122,43 +122,49 @@ export default defineComponent({
 </script>
 
 <template>
-  <n-modal
+  <el-dialog
     class="dialog-entry-preview"
-    v-model:show="mVisible"
-    preset="dialog"
+    v-model="mVisible"
     :title="entryDetail && entryDetail.title"
+    width="600px"
+    append-to-body
   >
-    <template #icon>
-      <IconDisplay
-        v-if="entryDetail"
-        :icon="entryDetail.icon"
-        :bg-color="entryDetail.bgColor"
-        :fg-color="entryDetail.fgColor"
-      />
+    <template #header>
+      <div class="vgo-u-flex-wrap-center">
+        <IconDisplay
+          v-if="entryDetail"
+          :icon="entryDetail.icon"
+          :bg-color="entryDetail.bgColor"
+          :fg-color="entryDetail.fgColor"
+        />
+        <span>{{ entryDetail && entryDetail.title }}</span>
+      </div>
     </template>
     <template v-if="entryDetail">
-      <n-space justify="space-between" style="font-size: 12px">
-        <n-space align="center" style="font-weight: 500">
-          Created: {{ formatDate(new Date(entryDetail.creationTime)) }}
-        </n-space>
-        <n-space align="center">
-          Updated: {{ formatDate(new Date(entryDetail.lastModTime)) }}
-        </n-space>
-      </n-space>
-      <n-divider style="margin-top: 10px; margin-bottom: 10px" />
+      <div class="preview-times">
+        <span>Created: {{ formatDate(new Date(entryDetail.creationTime)) }}</span>
+        <span>Updated: {{ formatDate(new Date(entryDetail.lastModTime)) }}</span>
+      </div>
+      <el-divider />
 
       <div
         :class="mainStore.isAppDarkMode ? 'markdown-body-dark' : 'markdown-body'"
         v-html="htmlContent"
       />
     </template>
-  </n-modal>
+  </el-dialog>
 </template>
 
 <style lang="scss">
 .dialog-entry-preview {
-  width: 600px !important;
   margin-top: 10px;
   margin-bottom: 10px;
+
+  .preview-times {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 500;
+  }
 }
 </style>

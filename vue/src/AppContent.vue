@@ -4,11 +4,9 @@ import globalEventBus, {GlobalEvents} from '@/utils/bus'
 import {kService} from '@/api'
 import {useSettingsStore} from '@/store/settings'
 import {useKeeStore} from '@/store/kee-store'
-import {useBeforeUnload, useUnSavedChanges} from '@/hooks/use-changed'
-import {isElectron} from '@/utils/backend'
-import electronService from '@/utils/backend/electron'
-import {useKeeNoteSaveClose} from '@/hooks/use-keenote'
-import {ElMessage, ElMessageBox, ElNotification} from 'element-plus'
+import {useBeforeUnload} from '@/hooks/use-changed'
+import dialog from '@/utils/dialog'
+import {ElMessage, ElNotification} from 'element-plus'
 import NProgress from 'nprogress'
 
 NProgress.configure({
@@ -19,38 +17,14 @@ export default defineComponent({
   components: {
     GlobalSettings,
   },
-  emits: ['themeChange'],
   setup() {
     const settingsStore = useSettingsStore()
     const keeStore = useKeeStore()
 
     window.$message = ElMessage
-    window.$dialog = ElMessageBox
+    window.$dialog = dialog
     window.$notification = ElNotification
     window.$loadingBar = NProgress
-
-    const {commonCloseDatabase} = useKeeNoteSaveClose()
-
-    const handleClose = () => {
-      commonCloseDatabase({isCloseApp: true})
-    }
-
-    onMounted(() => {
-      globalEventBus.on(GlobalEvents.SHOW_SETTINGS, handleShowSettings)
-      globalEventBus.on(GlobalEvents.SAVE_DATABASE, saveAction)
-
-      if (isElectron) {
-        electronService.on('IPC_APP_CLOSING', handleClose)
-      }
-    })
-    onBeforeUnmount(() => {
-      globalEventBus.off(GlobalEvents.SHOW_SETTINGS, handleShowSettings)
-      globalEventBus.off(GlobalEvents.SAVE_DATABASE, saveAction)
-
-      if (isElectron) {
-        electronService.off('IPC_APP_CLOSING', handleClose)
-      }
-    })
 
     const settingsVisible = ref(false)
     const handleShowSettings = () => {
@@ -74,6 +48,15 @@ export default defineComponent({
       }
     }
 
+    onMounted(() => {
+      globalEventBus.on(GlobalEvents.SHOW_SETTINGS, handleShowSettings)
+      globalEventBus.on(GlobalEvents.SAVE_DATABASE, saveAction)
+    })
+    onBeforeUnmount(() => {
+      globalEventBus.off(GlobalEvents.SHOW_SETTINGS, handleShowSettings)
+      globalEventBus.off(GlobalEvents.SAVE_DATABASE, saveAction)
+    })
+
     // 提示用户不要直接关闭页面
     useBeforeUnload(() => keeStore.isNotSave)
 
@@ -84,6 +67,11 @@ export default defineComponent({
 })
 </script>
 <template>
-  <AutoRouterView />
+  <router-view v-slot="{Component, route}">
+    <keep-alive v-if="route.meta && route.meta.keepAlive">
+      <component :is="Component" :key="route.name" />
+    </keep-alive>
+    <component :is="Component" v-else :key="route.name" />
+  </router-view>
   <GlobalSettings v-model:visible="settingsVisible" />
 </template>

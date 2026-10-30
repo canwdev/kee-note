@@ -24,25 +24,22 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 // https://pictogrammers.com/library/mdi/
 import '@mdi/font/css/materialdesignicons.min.css'
 
+// vgo-ui 结构样式 + 默认主题
+import '@canwdev/vgo-ui/styles/core'
+import '@canwdev/vgo-ui/themes/default'
+
 import {createApp} from 'vue'
 import 'normalize.css'
 import router from './router'
 import App from './App.vue'
-import {create} from 'naive-ui'
 import {createPinia} from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import '@/components/CanUI/packages/ViewPortWindow/theme/index.scss'
-import CanUI from '@/components/CanUI'
 import './styles/base.scss'
-
-const naive = create()
 
 const app = createApp(App)
 
-app.use(CanUI)
 app.use(ElementPlus)
 
-app.use(naive)
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 app.use(pinia)

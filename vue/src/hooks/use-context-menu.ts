@@ -1,7 +1,15 @@
-import {DropdownOption} from 'naive-ui'
+export type ContextMenuItem = {
+  label: string
+  split?: boolean
+  disabled?: boolean
+  props?: {
+    onClick?: () => void
+    [key: string]: any
+  }
+}
 
 export const useContextMenu = (getOptions) => {
-  const rightMenuOptions = ref<DropdownOption[]>([])
+  const rightMenuOptions = ref<ContextMenuItem[]>([])
   const showRightMenu = ref(false)
   const xRef = ref(0)
   const yRef = ref(0)
@@ -20,8 +28,9 @@ export const useContextMenu = (getOptions) => {
     showRightMenu,
     xRef,
     yRef,
-    handleSelect: () => {
+    handleSelect: (option?: ContextMenuItem) => {
       showRightMenu.value = false
+      option?.props?.onClick?.()
     },
     handleClickOutside: () => {
       showRightMenu.value = false

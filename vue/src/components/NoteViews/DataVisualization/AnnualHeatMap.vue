@@ -196,9 +196,9 @@ export default defineComponent({
             formatter(params) {
               if (!params.data) return
               if (!params.data.items) return params.name
-              let html = `<div class="text-overflow"><b>${params.name}</b></div>`
+              let html = `<div class="vgo-u-text-overflow"><b>${params.name}</b></div>`
               params.data.items.forEach((item, index) => {
-                html += `<div class="text-overflow">[${index + 1}] ${item.title}</div>`
+                html += `<div class="vgo-u-text-overflow">[${index + 1}] ${item.title}</div>`
               })
               return `<div class="heat-map-tooltip-titles">${html}</div>`
             },

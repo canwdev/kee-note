@@ -4,7 +4,7 @@ import {useKeeNoteEntryList} from '@/hooks/use-keenote'
 import {useCommonActions} from '@/components/NoteViews/use-common-actions'
 import DialogGroupSelect from '@/components/NoteViews/Dialogs/DialogGroupSelect.vue'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
-import CalendarLite from '@/components/CanUI/packages/CalendarLite/index.vue'
+import CalendarLite from '@/components/NoteViews/Calendar/CalendarLite/index.vue'
 import MiniList from '@/components/NoteViews/Calendar/MiniList.vue'
 import LunarDay from '@/components/NoteViews/Calendar/LunarDay.vue'
 import {useSettingsStore} from '@/store/settings'
@@ -13,6 +13,7 @@ import {pad2Num} from '@/utils'
 import HolidayDisplay from '@/components/NoteViews/Calendar/HolidayDisplay.vue'
 import {CalendarCheckmark20Regular} from '@vicons/fluent'
 import DataVisualization from '@/components/NoteViews/DataVisualization/index.vue'
+import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
 import moment from 'moment/moment'
 
 export default defineComponent({
@@ -24,6 +25,7 @@ export default defineComponent({
     LunarDay,
     MiniList,
     CalendarLite,
+    ContextMenu,
     DialogGroupSelect,
     DialogEntryPreview,
   },
@@ -161,14 +163,14 @@ export default defineComponent({
       @onDayContextMenu="({event, day}) => handleItemContextMenu(event, {day})"
     >
       <template #headerLeft>
-        <n-icon
-          size="24"
-          class="cursor-pointer"
+        <el-icon
+          :size="24"
+          class="vgo-u-button-reset"
           title="Data Visualization"
           @click="isShowDataVisualization = true"
         >
           <CalendarCheckmark20Regular />
-        </n-icon>
+        </el-icon>
       </template>
       <template #day="{day}">
         <div class="mini-list-scroll">
@@ -198,16 +200,13 @@ export default defineComponent({
       @onSeriesClick="handleSeriesClick"
     />
 
-    <n-dropdown
-      trigger="manual"
-      placement="bottom-start"
+    <ContextMenu
       :show="showRightMenu"
-      :options="rightMenuOptions"
       :x="xRef"
       :y="yRef"
+      :options="rightMenuOptions"
       @select="handleSelect"
-      key-field="label"
-      :on-clickoutside="handleClickOutside"
+      @close="handleClickOutside"
     />
 
     <DialogGroupSelect

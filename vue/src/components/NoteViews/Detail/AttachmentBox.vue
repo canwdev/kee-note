@@ -45,7 +45,7 @@ export default defineComponent({
         multiple: true,
       })
 
-      const files = []
+      const files: File[] = []
       for (let i = 0; i < handles.length; i++) {
         const handle = handles[i]
         const file = await handle.getFile()
@@ -54,6 +54,10 @@ export default defineComponent({
 
       await uploadAttachment(entryDetail.value.uuid, files)
       emit('dataUpdated')
+    }
+
+    const handleMenuCommand = (item: any) => {
+      item?.props?.onClick?.()
     }
 
     const editingFilename = ref(null)
@@ -97,6 +101,7 @@ export default defineComponent({
       handlePreviewItem,
       handleRemoveItem,
       handleAddAttachment,
+      handleMenuCommand,
       getMenuOptions,
       isShowRenameDialog,
       handleRename,
@@ -108,26 +113,33 @@ export default defineComponent({
 
 <template>
   <div class="attachment-box">
-    <n-space align="center">
-      Attachments
-      <n-button-group size="tiny" v-for="(item, index) in entryDetail.attachmentNames" :key="item">
-        <n-button @click="handlePreviewItem(item, index)">{{ item }}</n-button>
+    <div class="vgo-u-flex-wrap-center">
+      <span>Attachments</span>
+      <el-button-group v-for="(item, index) in entryDetail.attachmentNames" :key="item">
+        <el-button size="small" @click="handlePreviewItem(item, index)">{{ item }}</el-button>
 
-        <n-dropdown :options="getMenuOptions(item)" key-field="label">
-          <n-button title="Delete file">
-            <template #icon>
-              <MoreVertical16Regular />
-            </template>
-          </n-button>
-        </n-dropdown>
-      </n-button-group>
+        <el-dropdown trigger="click" @command="handleMenuCommand">
+          <el-button size="small" title="More">
+            <el-icon><MoreVertical16Regular /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="(opt, i) in getMenuOptions(item)"
+                :key="i"
+                :command="opt"
+              >
+                {{ opt.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </el-button-group>
 
-      <n-button title="Add file" size="tiny" @click="handleAddAttachment">
-        <template #icon>
-          <Attach12Regular />
-        </template>
-      </n-button>
-    </n-space>
+      <el-button title="Add file" size="small" @click="handleAddAttachment">
+        <el-icon><Attach12Regular /></el-icon>
+      </el-button>
+    </div>
 
     <AttachmentPreview
       v-model:visible="isShowPreview"
@@ -139,7 +151,7 @@ export default defineComponent({
 
     <DialogInput
       v-model:visible="isShowRenameDialog"
-      :value="editingFilename"
+      :value="editingFilename || ''"
       dialog-title="Rename File"
       input-label="Filename"
       @onSubmit="handleRename"

@@ -3,7 +3,6 @@ import {defineComponent} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import keepassIcons from '@/assets/icons'
-import {Icons20Regular} from '@vicons/fluent'
 
 export default defineComponent({
   name: 'DialogIconChooser',
@@ -29,28 +28,32 @@ export default defineComponent({
       onSelectIcon(index) {
         emit('onSelectIcon', index)
       },
-      dialogIconRender() {
-        return h(Icons20Regular)
-      },
     }
   },
 })
 </script>
 
 <template>
-  <n-modal
-    class="global-settings"
-    :icon="dialogIconRender"
-    v-model:show="mVisible"
-    preset="dialog"
-    title="Choose Icon"
-  >
-    <n-grid :y-gap="5" :cols="5">
-      <n-grid-item v-for="(item, index) in keepassIcons" :key="index" style="text-align: center">
-        <n-button size="large" quaternary @click="onSelectIcon(index)">
-          <IconDisplay size="32" :icon="Number(index)" />
-        </n-button>
-      </n-grid-item>
-    </n-grid>
-  </n-modal>
+  <el-dialog v-model="mVisible" title="Choose Icon" width="520px" append-to-body>
+    <div class="icon-chooser-grid">
+      <el-button
+        v-for="(item, index) in keepassIcons"
+        :key="index"
+        text
+        @click="onSelectIcon(index)"
+      >
+        <IconDisplay :size="32" :icon="Number(index)" />
+      </el-button>
+    </div>
+  </el-dialog>
 </template>
+
+<style lang="scss" scoped>
+.icon-chooser-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--vgo-space-1);
+  max-height: 60vh;
+  overflow: auto;
+}
+</style>

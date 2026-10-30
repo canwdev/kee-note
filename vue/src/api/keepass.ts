@@ -1,4 +1,4 @@
-import service, {isElectron} from '../utils/backend'
+import service from '../utils/backend'
 
 export const openDatabase = (params?: any) => {
   return service.post('open-database', params)
@@ -75,46 +75,20 @@ export const removeAttachment = (params: any) => {
   return service.post('remove-attachment', params)
 }
 
-function readAsArrayBufferSync(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      resolve(reader.result)
-    }
-    reader.onerror = reject
-    reader.readAsArrayBuffer(file)
-  })
-}
-
 export const uploadAttachment = async (uuid: string, files: File[]) => {
-  if (isElectron) {
-    const filesData: any = []
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      filesData.push({
-        originalname: encodeURIComponent(file.name),
-        buffer: await readAsArrayBufferSync(file),
-      })
-    }
-
-    service.post('upload-attachment', {
-      uuid,
-      files: filesData,
-    })
-  } else {
-    const formData = new FormData()
-    files.forEach((file) => {
-      formData.append('files', file, encodeURIComponent(file.name))
-    })
-    return service.post('upload-attachment', formData, {
-      params: {
-        uuid,
-      },
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+  const filesData: any = []
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    filesData.push({
+      name: file.name,
+      buffer: await file.arrayBuffer(),
     })
   }
+
+  return service.post('upload-attachment', {
+    uuid,
+    files: filesData,
+  })
 }
 export const renameAttachment = (params: any) => {
   return service.post('rename-attachment', params)

@@ -5,12 +5,10 @@ import {kService} from '@/api'
 import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
 import {HistoryListItem} from '@/enum/settings'
 import {useSettingsStore} from '@/store/settings'
-import {isElectron} from '@/utils/backend'
+import {hasDatabaseFileHandle} from '@/utils/backend'
 import {showInputPrompt} from '@/components/CommonUI/input-prompt'
 import {formatDate} from '@/utils'
-import {NButton, NSpace, TreeDropInfo} from 'naive-ui'
-
-import {electronCommonApi} from '@/api/electron'
+import {ElMessageBox} from 'element-plus'
 
 export interface CalendarData {
   // year
@@ -32,9 +30,7 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
   const route = useRoute()
   const router = useRouter()
 
-  const groupUuid = computed(() => {
-    return route.query.groupUuid
-  })
+  const groupUuid = computed((): string => String(route.query.groupUuid || ''))
 
   const rootGroupUuid = computed(() => {
     return groupTree.value[0]?.uuid
@@ -96,9 +92,9 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
     }
   }
 
-  const handleTreeDrop = async ({node, dragNode, dropPosition}: TreeDropInfo) => {
-    const {uuid} = dragNode
-    const {uuid: targetUuid} = node
+  const handleTreeDrop = async (dragNode: any, dropNode: any) => {
+    const {uuid} = dragNode?.data || dragNode
+    const {uuid: targetUuid} = dropNode?.data || dropNode
 
     await kService.moveGroup({
       uuid,
@@ -128,7 +124,7 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
       window.$message.info('Database already opened')
 
       return
-    } else if (isElectron) {
+    } else if (!hasDatabaseFileHandle()) {
       await router.replace({
         name: 'HomeView',
       })
@@ -312,9 +308,7 @@ export const useKeeNoteEntryList = (options?) => {
   const entryList = ref<EntryItem[]>([])
   const calendarData = ref<CalendarData>({})
 
-  const groupUuid = computed(() => {
-    return route.query.groupUuid
-  })
+  const groupUuid = computed((): string => String(route.query.groupUuid || ''))
 
   onMounted(async () => {
     globalEventBus.on(GlobalEvents.REFRESH_ENTRY_LIST, getEntryList)
@@ -391,19 +385,11 @@ export const useKeeNoteSaveClose = () => {
     }
   }
 
-  const dialogRef = ref()
-
-  onBeforeUnmount(() => {
-    if (dialogRef.value) {
-      dialogRef.value.destroy()
-      dialogRef.value = null
-    }
-  })
+  let closeDialogOpen = false
 
   // 关闭数据库
   const commonCloseDatabase = async (options: any = {}) => {
     const {cleanupFn, isCloseApp = false} = options
-    console.log(options)
     const doClose = async () => {
       await kService.closeDatabase()
       settingsStore.lastOpenedHistoryItem = null
@@ -418,9 +404,7 @@ export const useKeeNoteSaveClose = () => {
         cleanupFn()
       }
 
-      if (isCloseApp) {
-        electronCommonApi.electronCloseWindow()
-      } else if (isElectron) {
+      if (!isCloseApp) {
         await router.replace({
           name: 'HomeView',
         })
@@ -429,57 +413,31 @@ export const useKeeNoteSaveClose = () => {
 
     if (keeStore.isNotSave) {
       // 防止重复弹窗
-      if (dialogRef.value) {
-        // dialogRef.value?.destroy()
+      if (closeDialogOpen) {
         return
       }
-      dialogRef.value = window.$dialog.warning({
-        title: `Data not saved!`,
-        content: `Do you want to close without saving?`,
-        positiveText: 'OK',
-        negativeText: 'Cancel',
-        onPositiveClick: async () => {
+      closeDialogOpen = true
+      try {
+        await ElMessageBox.confirm(
+          'Do you want to save before closing?',
+          'Data not saved!',
+          {
+            confirmButtonText: 'Save and Close',
+            cancelButtonText: 'Close Without Save',
+            distinguishCancelAndClose: true,
+            showClose: true,
+            type: 'warning',
+          },
+        )
+        await commonSaveDatabase()
+        await doClose()
+      } catch (action) {
+        if (action === 'cancel') {
           await doClose()
-        },
-        onAfterLeave: () => {
-          dialogRef.value = null
-        },
-
-        action: () =>
-          h(NSpace, {size: 'small'}, () => [
-            h(
-              NButton,
-              {
-                type: 'primary',
-                onClick: async () => {
-                  await commonSaveDatabase()
-                  await doClose()
-                  dialogRef.value?.destroy()
-                },
-              },
-              () => 'Save and Close',
-            ),
-            h(
-              NButton,
-              {
-                onClick: async () => {
-                  await doClose()
-                  dialogRef.value?.destroy()
-                },
-              },
-              () => 'Close Without Save',
-            ),
-            h(
-              NButton,
-              {
-                onClick: () => {
-                  dialogRef.value?.destroy()
-                },
-              },
-              () => 'Cancel',
-            ),
-          ]),
-      })
+        }
+      } finally {
+        closeDialogOpen = false
+      }
       return
     }
     await doClose()

@@ -1,12 +1,10 @@
 <script lang="ts">
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
-import {FormInst, FormRules, FormValidationError} from 'naive-ui'
+import type {FormInstance, FormRules} from 'element-plus'
 import {ref} from 'vue'
-import {NotepadEdit16Regular} from '@vicons/fluent'
 
 export default defineComponent({
   name: 'DialogInput',
-  components: {NotepadEdit16Regular},
   props: {
     visible: {
       type: Boolean,
@@ -37,12 +35,12 @@ export default defineComponent({
   setup(props, {emit}) {
     const {value: propValue, inputLabel, required} = toRefs(props)
     const mVisible = useModelWrapper(props, emit, 'visible')
-    const formRef = ref<FormInst | null>(null)
+    const formRef = ref<FormInstance | null>(null)
     const inputRef = ref<any>(null)
     const modelRef = reactive<{name: string}>({
       name: '',
     })
-    const rules: FormRules = {
+    const rules = computed<FormRules>(() => ({
       name: [
         {
           required: required.value,
@@ -50,15 +48,13 @@ export default defineComponent({
           trigger: ['blur'],
         },
       ],
-    }
+    }))
 
     watch(mVisible, (val) => {
       if (val) {
         modelRef.name = propValue.value
         nextTick(() => {
-          if (inputRef.value) {
-            inputRef.value.focus()
-          }
+          inputRef.value?.focus()
         })
       } else {
         setTimeout(() => {
@@ -67,47 +63,47 @@ export default defineComponent({
       }
     })
 
+    const handleOK = async () => {
+      try {
+        await formRef.value?.validate()
+      } catch (e) {
+        return
+      }
+      emit('onSubmit', modelRef.name)
+      mVisible.value = false
+    }
+
     return {
       inputRef,
       formRef,
       mVisible,
       modelRef,
       rules,
-      handleOK(e: MouseEvent) {
-        e.preventDefault()
-        formRef.value?.validate((errors: Array<FormValidationError> | undefined) => {
-          if (errors) {
-            return
-          }
-          emit('onSubmit', modelRef.name)
-          mVisible.value = false
-        })
-      },
-      dialogIconRender() {
-        return h(NotepadEdit16Regular)
-      },
+      handleOK,
     }
   },
 })
 </script>
 
 <template>
-  <n-modal v-model:show="mVisible" preset="dialog" :icon="dialogIconRender" :title="dialogTitle">
-    <n-form ref="formRef" :model="modelRef" :rules="rules">
-      <n-form-item path="name" :label="inputLabel">
-        <n-input
+  <el-dialog v-model="mVisible" :title="dialogTitle" width="440px" append-to-body>
+    <el-form ref="formRef" :model="modelRef" :rules="rules" @submit.prevent>
+      <el-form-item prop="name" :label="inputLabel">
+        <el-input
           ref="inputRef"
-          v-model:value="modelRef.name"
+          v-model="modelRef.name"
           :type="isPassword ? 'password' : 'text'"
-          show-password-on="click"
+          :show-password="isPassword"
           @keyup.enter="handleOK"
         />
-      </n-form-item>
+      </el-form-item>
+    </el-form>
 
-      <n-space style="display: flex; justify-content: flex-end">
-        <n-button @click="mVisible = false"> Cancel </n-button>
-        <n-button type="primary" @click="handleOK"> OK </n-button>
-      </n-space>
-    </n-form>
-  </n-modal>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="mVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="handleOK">OK</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>

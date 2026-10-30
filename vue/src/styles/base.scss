@@ -6,9 +6,11 @@ body {
   margin: 0;
   touch-action: manipulation; // disable ios double tap zoom
   //user-select: none;
+  background: var(--vgo-surface);
+  color: var(--vgo-text);
 }
 
-#app, .n-config-provider {
+#app {
   height: 100%;
 }
 
@@ -51,115 +53,6 @@ a:hover {
 //    background-color: #f9f9f9;
 //  }
 //}
-
-.scrollbar-mini {
-  $radius: 8px;
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-    overflow: overlay;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    border-radius: $radius;
-    border: 2px solid transparent;
-    background-clip: content-box;
-    background-color: rgba(192, 192, 192, 0.63);
-
-    &:hover {
-      background-color: #bebebe;
-    }
-  }
-
-  ::-webkit-scrollbar-track {
-    border-radius: 4px;
-    background: transparent;
-  }
-}
-
-.text-overflow {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-
-.flex-row-center-gap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.font-code {
-  font-family: 'Operator Mono', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;
-}
-
-.font-emoji {
-  font-family: "Segoe UI Emoji", "SF Pro SC", "SF Pro Text", "SF Pro Icons", "PingFang SC", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
-}
-
-.cursor-pointer {
-  cursor: pointer;
-}
-
-.btn-no-style {
-  background: none;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  color: inherit;
-  padding: 0;
-  text-decoration: none;
-
-  &:active {
-    opacity: 0.8;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-}
-
-.disable-animation {
-  * {
-    transition: none !important;
-    animation: none !important;
-  }
-
-  .n-modal-mask {
-    background-color: transparent;
-  }
-
-  .n-modal, .n-card, .n-dropdown-menu, .n-notification, .n-message,
-  .n-date-panel, .n-popover {
-    box-shadow: none;
-    outline: 1px solid $primary;
-  }
-}
-
-
-// naive ui:
-
-.n-dialog__icon {
-  margin-right: 10px !important;
-}
-
-.n-input-group-label {
-  display: inline-flex;
-  align-items: center;
-}
-
-.n-data-table__pagination {
-  padding: 0 15px;
-}
-
-.n-notification-main-footer__meta {
-  p {
-    margin: 0;
-  }
-}
 
 .fade-scale-enter-active,
 .fade-scale-leave-active {

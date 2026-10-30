@@ -1,22 +1,5 @@
-import {isElectron} from '@/utils/backend'
-
-import {electronCommonApi} from '@/api/electron'
-
-function handleClick(event) {
-  // 在外部打开链接
-  if (isElectron) {
-    if (event.target.tagName === 'A' && event.target.href.startsWith('http')) {
-      // console.log(event.target.href)
-      event.preventDefault()
-      electronCommonApi.electronOpenLink({url: event.target.href})
-    }
-  }
-}
-export const useGlobalShortcuts = () => {
-  onMounted(() => {
-    window.addEventListener('click', handleClick)
-  })
-  onBeforeUnmount(() => {
-    window.removeEventListener('click', handleClick)
-  })
-}
+/**
+ * 浏览器环境下浏览器已原生处理链接与快捷键，
+ * 这里保留 hook 以兼容 App.vue 的调用。
+ */
+export const useGlobalShortcuts = () => {}

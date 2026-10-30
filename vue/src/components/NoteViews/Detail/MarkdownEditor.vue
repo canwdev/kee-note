@@ -12,7 +12,6 @@ import {
   useLocalStorageNumber,
   useLocalStorageString,
 } from '@/hooks/use-local-storage'
-import {LsKeys} from '@/enum' // Front Matter
 
 // CodeMirror Theme
 import '@/styles/editor/keenote-dark.scss'
@@ -206,64 +205,59 @@ export default defineComponent({
   <div class="markdown-editor" :class="{_dark: mainStore.isAppDarkMode}">
     <textarea ref="textareaRef"></textarea>
 
-    <n-modal
-      v-model:show="isShowEditorSettings"
-      :icon="dialogIconRender"
-      preset="dialog"
+    <el-dialog
+      v-model="isShowEditorSettings"
       title="HyperMD Editor Settings"
+      width="520px"
+      append-to-body
     >
-      <n-list>
-        <n-list-item>
-          <n-thing title="Font Size" description="" />
-          <template #suffix>
-            <n-input-group>
-              <n-input-number
-                v-model:value="editorSettingsStore.editorFontSize"
-                style="width: 100px"
-                :update-value-on-input="false"
-              />
-              <n-input-group-label>px</n-input-group-label>
-            </n-input-group>
-          </template>
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Enable WYSIWYG" description="" />
-          <template #suffix>
-            <n-switch v-model:value="editorSettingsStore.isEditWYSIWYG" />
-          </template>
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Font Family" description="" />
-          <template #suffix>
-            <n-input
-              v-model:value="editorSettingsStore.editorFontFamily"
-              style="width: 200px"
-              placeholder="CSS font-family value"
+      <div class="editor-settings">
+        <div class="editor-settings__row">
+          <span>Font Size</span>
+          <div class="vgo-u-flex-wrap-center">
+            <el-input-number
+              v-model="editorSettingsStore.editorFontSize"
+              style="width: 120px"
+              :controls="false"
             />
-          </template>
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Editor Theme" description="" />
-          <template #suffix>
-            <n-select
-              v-model:value="editorSettingsStore.editorTheme"
-              :options="editorThemeOptions"
-              style="width: 200px"
-            />
-          </template>
-        </n-list-item>
-        <n-list-item>
-          <n-thing
-            title="Turn Off HyperMD"
-            description="Back to basic editor"
-            style="line-height: 1"
+            <span>px</span>
+          </div>
+        </div>
+        <div class="editor-settings__row">
+          <span>Enable WYSIWYG</span>
+          <el-switch v-model="editorSettingsStore.isEditWYSIWYG" />
+        </div>
+        <div class="editor-settings__row">
+          <span>Font Family</span>
+          <el-input
+            v-model="editorSettingsStore.editorFontFamily"
+            style="width: 260px"
+            placeholder="CSS font-family value"
           />
-          <template #suffix>
-            <n-button @click="$emit('turnOff')">Turn Off</n-button>
-          </template>
-        </n-list-item>
-      </n-list>
-    </n-modal>
+        </div>
+        <div class="editor-settings__row">
+          <span>Editor Theme</span>
+          <el-select
+            v-model="editorSettingsStore.editorTheme"
+            style="width: 260px"
+          >
+            <el-option
+              v-for="item in editorThemeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </div>
+        <div class="editor-settings__row">
+          <div>
+            <div>Turn Off HyperMD</div>
+            <small>Back to basic editor</small>
+          </div>
+          <el-button @click="$emit('turnOff')">Turn Off</el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -279,6 +273,19 @@ export default defineComponent({
   }
   &._dark {
     border-color: transparent;
+  }
+}
+
+.editor-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vgo-space-3);
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vgo-space-3);
   }
 }
 </style>

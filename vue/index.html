@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="en" class="scrollbar-mini">
+<html lang="en" class="vgo-u-scrollbar">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>KeeNote</title>
   </head>
-  <body class="theme-default">
+  <body class="vgo-theme-default">
     <div id="app"></div>
+    <!-- Argon2 (asm.js) for KDBX4, exposes window.Module -->
+    <script src="%BASE_URL%argon2-asm.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

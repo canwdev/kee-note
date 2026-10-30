@@ -1,11 +1,9 @@
 <script lang="ts">
 import {defineComponent, ref} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
-// import VueMonaco from '@/components/CanUI/packages/VueMonaco/index.vue'
 
 export default defineComponent({
   name: 'DialogTextEdit',
-  // components: {VueMonaco},
   props: {
     visible: {
       type: Boolean,
@@ -95,7 +93,7 @@ export default defineComponent({
         ref="inputRef"
         :type="type"
         v-model="editingText"
-        class="font-code"
+        class="vgo-u-font-code"
         :rows="isTextarea ? 25 : null"
         :placeholder="placeholder"
         autofocus

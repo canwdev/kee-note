@@ -4,10 +4,6 @@ interface IStore {
   ldTheme: LdThemeType
   // 主题色
   themeColor: string
-  enableGlobalCss: boolean
-  disableAnimation: boolean
-  // Enable NaiveUI Theme Editor?
-  isEnableThemeEdit: boolean
 
   // Save kdbx opened history?
   isSaveHistory: boolean
@@ -23,8 +19,6 @@ interface IStore {
   calendarShowTitle: boolean
 
   isSidebarCollapsed: boolean
-  // 是否阻止截屏或录像App画面
-  isContentProtection: boolean
 
   // 自动保存
   enableAutoSave: boolean
@@ -35,9 +29,6 @@ export const useSettingsStore = defineStore('settingsStore', {
     return {
       ldTheme: LdThemeType.SYSTEM,
       themeColor: '#189BA0',
-      enableGlobalCss: false,
-      disableAnimation: false,
-      isEnableThemeEdit: false,
 
       isSaveHistory: true,
       historyList: [],
@@ -49,7 +40,6 @@ export const useSettingsStore = defineStore('settingsStore', {
       calendarShowTitle: true,
 
       isSidebarCollapsed: false,
-      isContentProtection: true,
 
       enableAutoSave: true,
     }

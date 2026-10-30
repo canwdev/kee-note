@@ -1,14 +1,15 @@
 :root {
-  --primary-rgb:37,130,146;
-  --primary:rgb(var(--primary-rgb));
+  --primary: var(--vgo-primary);
+  --primary-rgb: var(--vgo-primary-rgb);
 }
-$primary: var(--primary); // #8dbb72;
-$primary_opacity: rgba(var(--primary-rgb), .25); //opacify($primary, 0.3);
 
-$primary_alt: #f44336;
-$color_border: rgba(91, 85, 85, 0.2);
-$color_hover: rgba(91, 85, 85, 0.1);
+$primary: var(--vgo-primary);
+$primary_opacity: var(--vgo-primary-opacity);
+$primary_alt: var(--vgo-danger);
+
+$color_border: var(--vgo-border);
+$color_hover: var(--vgo-hover);
 $color_dark: #58595a;
-$bg_color: #F9F9F9;
+$bg_color: var(--vgo-surface);
 
 $mq_mobile_width: 567px;

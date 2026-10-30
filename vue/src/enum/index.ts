@@ -1,26 +1,3 @@
-export const API_BASE_URL = import.meta.env.VITE_API_HOST || ''
-export const API_PROXY_BASE = import.meta.env.VITE_PROXY_BASE || ''
-export const isDev = import.meta.env.MODE === 'development'
-
-export const getMyCryptKey = () => localStorage.getItem(LsKeys.LS_KEY_KN_HTTP_CRYPT_KEY)
-
-export const LsKeys = {
-  LS_KEY_AUTHORIZATION: 'ck_keenote_authorization',
-  LS_KEY_KN_HTTP_CRYPT_KEY: 'ck_keenote_KN_HTTP_CRYPT_KEY',
-  GLOBAL_STYLE: 'ck_keenote_global_style',
-}
-
-export const getLocalStorageObject = (key, fallback?) => {
-  const str = localStorage.getItem(key)
-  if (str) {
-    return JSON.parse(str)
-  }
-  return fallback
-}
-export const setLocalStorageObject = (key, obj) => {
-  localStorage.setItem(key, JSON.stringify(obj))
-}
-
 export const Palette = [
   {name: 'red', color: '#f44336'},
   {name: 'pink', color: '#e91e63'},

@@ -17,9 +17,7 @@ export const useCommonActions = (options) => {
   const isShowGroupSelectModal = ref(false)
   const isShowPreviewModal = ref(false)
 
-  const groupUuid = computed(() => {
-    return route.query.groupUuid
-  })
+  const groupUuid = computed((): string => String(route.query.groupUuid || ''))
 
   const handleDeleteEntry = async (uuid: string, isDelete = false) => {
     if (isDelete) {
@@ -41,7 +39,7 @@ export const useCommonActions = (options) => {
     await exportEntryListJson(checkedRowKeys.value)
   }
 
-  const getMenuOptions = (item: EntryItem | any) => {
+  const getMenuOptions = (item: EntryItem | any): any[] => {
     const isMultiple = Boolean(checkedRowKeys.value.length)
     const isInRecycleBin = keeStore.recycleBinUuid === groupUuid.value
 

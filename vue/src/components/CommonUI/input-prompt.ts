@@ -1,5 +1,8 @@
-import {NButton, NInput, NSpace} from 'naive-ui'
+import {ElMessageBox} from 'element-plus'
 
+/**
+ * 通用输入弹窗（Element Plus 实现），兼容原有调用签名。
+ */
 export const showInputPrompt = (options: any = {}): Promise<string> => {
   const {
     title = '',
@@ -10,76 +13,19 @@ export const showInputPrompt = (options: any = {}): Promise<string> => {
     allowEmpty = false,
   } = options
 
-  return new Promise((resolve, reject) => {
-    let editingValue = ref(value)
-    const inputRef = ref()
-
-    const handlePositiveClick = async () => {
-      if (!editingValue.value && !allowEmpty) {
-        return
+  return ElMessageBox.prompt(placeholder, title, {
+    inputValue: value,
+    inputType: type,
+    confirmButtonText: 'OK',
+    cancelButtonText: 'Cancel',
+    inputValidator: (val: string) => {
+      if (!allowEmpty && !val) {
+        return 'input value is required'
       }
       if (typeof validateFn === 'function') {
-        const message = await validateFn(editingValue.value)
-        if (typeof message === 'string') {
-          window.$message.error(message)
-          return
-        }
+        return validateFn(val)
       }
-      resolve(editingValue.value)
-      d.destroy()
-    }
-
-    const d = window.$dialog.info({
-      title: title,
-      showIcon: false,
-      onAfterEnter: () => {
-        inputRef.value?.focus()
-      },
-      content: () =>
-        h(
-          NSpace,
-          {size: 'small', vertical: true},
-
-          () => [
-            h(NInput, {
-              ref: inputRef,
-              value: editingValue.value,
-              placeholder,
-              type,
-              clearable: true,
-              'onUpdate:value': (v) => {
-                editingValue.value = v
-              },
-              onKeydown: (event) => {
-                if (event.key === 'Enter') {
-                  handlePositiveClick()
-                  event.preventDefault()
-                }
-              },
-            }),
-          ]
-        ),
-      action: () =>
-        h(NSpace, {size: 'small'}, () => [
-          h(
-            NButton,
-            {
-              type: 'primary',
-              disabled: !allowEmpty && !editingValue.value,
-              onClick: handlePositiveClick,
-            },
-            () => 'OK'
-          ),
-          h(
-            NButton,
-            {
-              onClick: () => {
-                d.destroy()
-              },
-            },
-            () => 'Cancel'
-          ),
-        ]),
-    })
-  })
+      return true
+    },
+  }).then(({value: result}) => result)
 }

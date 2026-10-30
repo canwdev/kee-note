@@ -46,9 +46,9 @@ export default defineComponent({
     const {attachmentNames, index, uuid} = toRefs(props)
     const mVisible = useModelWrapper(props, emit, 'visible')
 
-    const imgSrc = ref(null)
-    const pureText = ref(null)
-    const blobData = shallowRef(null)
+    const imgSrc = ref<string | undefined>(undefined)
+    const pureText = ref<string | undefined>(undefined)
+    const blobData = shallowRef<Blob | null>(null)
 
     watch(mVisible, (val) => {
       if (val) {
@@ -56,8 +56,8 @@ export default defineComponent({
         updatePreview()
       } else {
         blobData.value = null
-        imgSrc.value = null
-        pureText.value = null
+        imgSrc.value = undefined
+        pureText.value = undefined
       }
     })
 
@@ -71,7 +71,7 @@ export default defineComponent({
     )
 
     const filename = computed(() => {
-      return attachmentNames.value[mIndex.value] || ''
+      return String(attachmentNames.value[mIndex.value] || '')
     })
 
     const fileMimeType = ref('')
@@ -101,7 +101,7 @@ export default defineComponent({
           const reader = new FileReader()
           reader.readAsText(blobData.value)
           reader.onload = () => {
-            pureText.value = reader.result
+            pureText.value = String(reader.result || '')
           }
         }
         return 'text'
@@ -151,7 +151,7 @@ export default defineComponent({
       fileMimeType,
       previewType,
       handleDownload() {
-        if (blobData.value) {
+        if (blobData.value && imgSrc.value) {
           aLinkDownload(imgSrc.value, filename.value)
         }
       },
@@ -161,28 +161,27 @@ export default defineComponent({
 </script>
 
 <template>
-  <n-modal
-    v-model:show="mVisible"
-    :icon="dialogIconRender"
+  <el-dialog
+    v-model="mVisible"
     :title="filename"
-    preset="card"
-    size="medium"
-    :style="{maxWidth: '800px'}"
+    width="800px"
+    append-to-body
+    class="attachment-preview-dialog"
   >
     <div class="attachment-preview">
-      <n-space size="small" align="center" justify="center">
-        <n-button-group>
-          <n-button title="Prev" size="small" @click="goPrev"
-            ><template #icon><ArrowPrevious20Regular /></template
-          ></n-button>
-          <n-button title="Next" size="small" @click="goNext"
-            ><template #icon><ArrowNext20Regular /></template
-          ></n-button>
-        </n-button-group>
-        <n-button title="Download" size="small" @click="handleDownload"
-          ><template #icon><ArrowDownload16Regular /></template
-        ></n-button>
-      </n-space>
+      <div class="vgo-u-flex-wrap-center preview-actions">
+        <el-button-group>
+          <el-button title="Prev" size="small" @click="goPrev">
+            <el-icon><ArrowPrevious20Regular /></el-icon>
+          </el-button>
+          <el-button title="Next" size="small" @click="goNext">
+            <el-icon><ArrowNext20Regular /></el-icon>
+          </el-button>
+        </el-button-group>
+        <el-button title="Download" size="small" @click="handleDownload">
+          <el-icon><ArrowDownload16Regular /></el-icon>
+        </el-button>
+      </div>
 
       <div class="image-box">
         <img v-if="previewType === 'image'" :src="imgSrc" />
@@ -198,7 +197,7 @@ export default defineComponent({
         {{ `${mIndex + 1}/${attachmentNames?.length}` }}
       </div>
     </div>
-  </n-modal>
+  </el-dialog>
 </template>
 
 <style lang="scss" scoped>

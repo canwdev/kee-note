@@ -4,9 +4,7 @@ import {GroupItem} from '@/enum/kdbx'
 import {defineComponent} from 'vue'
 import {useRouter} from 'vue-router'
 import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
-import {isElectron} from '@/utils/backend'
 import {useContextMenu} from '@/hooks/use-context-menu'
-import {LsKeys} from '@/enum'
 import ListView from '@/components/NoteViews/ListView.vue'
 import CalendarView from '@/components/NoteViews/Calendar/CalendarView.vue'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
@@ -19,14 +17,15 @@ import {useKeeNoteGroupManage, useKeeNoteSaveClose} from '@/hooks/use-keenote'
 import DetailView from '@/views/Note/DetailView.vue'
 import {checkDatabaseIsOpen} from '@/api/keepass'
 import DialogSearch from '@/components/NoteViews/DataSearch/DialogSearch.vue'
-import DropdownMenu from '@/components/CanUI/packages/OptionUI/Tools/DropdownMenu.vue'
-import FoldableSidebarLayout from '@/components/CanUI/packages/Layouts/FoldableSidebarLayout.vue'
+import FoldableSidebarLayout from '@/components/CommonUI/FoldableSidebarLayout.vue'
+import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
 
 export default defineComponent({
   name: 'NoteLayout',
   components: {
     FoldableSidebarLayout,
-    DropdownMenu,
+    ContextMenu,
+    IconDisplay,
     DialogSearch,
     DetailView,
     ListView,
@@ -188,12 +187,7 @@ export default defineComponent({
           },
         },
       },
-
-      !isElectron && {
-        type: 'divider',
-        label: 'd_logout',
-      },
-      !isElectron && {
+      {
         label: '🏃 Logout',
         props: {
           onClick: () => {
@@ -237,7 +231,6 @@ export default defineComponent({
       } catch (e) {
         window.$message.warning('Database close failed')
       }
-      localStorage.removeItem(LsKeys.LS_KEY_AUTHORIZATION)
       await router.replace({
         name: 'HomeView',
       })
@@ -245,38 +238,38 @@ export default defineComponent({
 
     const isShowSearchDialog = ref(false)
 
+    const treeProps = {
+      children: 'children',
+      label: 'title',
+    }
+
+    const handleMenuCommand = (item: any) => {
+      item?.props?.onClick?.()
+    }
+
+    const handleNodeClick = (data: GroupItem) => {
+      selectedKeys.value = [data.uuid]
+    }
+
     return {
       mainStore,
       settingsStore,
       keeStore,
-      isElectron,
       groupTree,
       selectedKeys,
       menuOptions,
       editingNode,
       isShowChooseIconModal,
-      renderPrefix({option}: {option: GroupItem}) {
-        return h(IconDisplay, {
-          icon: option.icon,
-          size: 18,
-        })
-      },
-      nodeProps: ({option}: {option: any}) => {
-        return {
-          onClick() {
-            // message.info('[Click] ' + option)
-          },
-          onContextmenu(e: MouseEvent): void {
-            handleContextmenu(e, option)
-          },
-        }
-      },
+      treeProps,
+      handleMenuCommand,
+      handleNodeClick,
       handleTreeDrop,
       handleSelectIcon,
       handleLogout,
       handleToggleLock,
       commonSaveDatabase,
       isShowSearchDialog,
+      handleContextmenu,
       ...contextMenuEtc,
     }
   },
@@ -286,7 +279,7 @@ export default defineComponent({
 <template>
   <div class="note-layout">
     <div class="nav-header-content">
-      <div class="flex-row-center-gap">
+      <div class="vgo-u-flex-wrap-center">
         <span class="logo-icon mdi mdi-lock"> </span>
         <span class="note-title"> KeeNote {{ keeStore.isNotSave ? '*' : '' }}</span>
 
@@ -294,15 +287,15 @@ export default defineComponent({
           v-if="keeStore.isNotSave"
           @click="commonSaveDatabase"
           title="Save (ctrl+s)"
-          class="btn-no-style"
+          class="vgo-u-button-reset"
         >
           <span class="mdi mdi-content-save"></span>
         </button>
       </div>
 
-      <div class="flex-row-center-gap">
+      <div class="vgo-u-flex-wrap-center">
         <button
-          class="btn-no-style"
+          class="vgo-u-button-reset"
           :title="keeStore.isDbOpened ? 'Lock' : 'Unlock'"
           @click="handleToggleLock"
         >
@@ -310,40 +303,54 @@ export default defineComponent({
           <span class="mdi mdi-key" v-else></span>
         </button>
 
-        <button class="btn-no-style" title="Search" @click="isShowSearchDialog = true">
+        <button class="vgo-u-button-reset" title="Search" @click="isShowSearchDialog = true">
           <span class="mdi mdi-magnify"></span>
         </button>
 
-        <DropdownMenu :options="menuOptions">
-          <el-badge :hidden="!mainStore.isServerRunning" is-dot type="success" :offset="[-4, 5]">
-            <button class="btn-no-style" title="Menu">
-              <span class="mdi mdi-cog"></span>
-            </button>
-          </el-badge>
-        </DropdownMenu>
+        <el-dropdown trigger="click" @command="handleMenuCommand">
+          <button class="vgo-u-button-reset" title="Menu">
+            <span class="mdi mdi-cog"></span>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="(item, index) in menuOptions"
+                :key="index"
+                :command="item"
+              >
+                {{ item.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
     <FoldableSidebarLayout v-model="settingsStore.isSidebarCollapsed">
       <template #sidebar>
-        <n-scrollbar x-scrollable>
-          <n-tree
-            style="min-width: 150px"
-            block-line
-            :data="groupTree"
-            key-field="uuid"
-            label-field="title"
-            children-field="children"
-            class="content-padding"
-            selectable
-            default-expand-all
-            draggable
-            :cancelable="false"
-            :node-props="nodeProps"
-            @drop="handleTreeDrop"
-            :render-prefix="renderPrefix"
-            v-model:selected-keys="selectedKeys"
-          />
-        </n-scrollbar>
+        <div class="tree-wrap-outer">
+          <div class="tree-wrap content-padding">
+            <el-tree
+              :data="groupTree"
+              node-key="uuid"
+              :props="treeProps"
+              :current-node-key="selectedKeys[0]"
+              highlight-current
+              default-expand-all
+              :expand-on-click-node="false"
+              draggable
+              @node-click="handleNodeClick"
+              @node-contextmenu="(event, data) => handleContextmenu(event, data)"
+              @node-drop="(dragNode, dropNode) => handleTreeDrop(dragNode.data, dropNode.data)"
+            >
+              <template #default="{data}">
+                <span class="tree-node">
+                  <IconDisplay :icon="data.icon" :size="18" />
+                  <span class="tree-node__title">{{ data.title }}</span>
+                </span>
+              </template>
+            </el-tree>
+          </div>
+        </div>
       </template>
       <template #default>
         <template v-if="groupTree.length">
@@ -355,16 +362,13 @@ export default defineComponent({
 
     <DialogIconChooser v-model:visible="isShowChooseIconModal" @onSelectIcon="handleSelectIcon" />
 
-    <n-dropdown
-      trigger="manual"
-      placement="bottom-start"
+    <ContextMenu
       :show="showRightMenu"
-      :options="rightMenuOptions"
       :x="xRef"
       :y="yRef"
+      :options="rightMenuOptions"
       @select="handleSelect"
-      key-field="label"
-      :on-clickoutside="handleClickOutside"
+      @close="handleClickOutside"
     />
   </div>
 
@@ -390,13 +394,13 @@ export default defineComponent({
     gap: 16px;
     border-bottom: 1px solid $color_border;
 
-    .btn-no-style {
+    .vgo-u-button-reset {
       .mdi {
         font-size: 24px;
       }
     }
 
-    .flex-row-center-gap {
+    .vgo-u-flex-wrap-center {
       gap: 16px;
     }
 
@@ -424,6 +428,30 @@ export default defineComponent({
   .foldable-sidebar-layout {
     flex: 1;
     box-shadow: none;
+  }
+
+  .tree-wrap-outer {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .tree-wrap {
+    height: 100%;
+    overflow: auto;
+    min-width: 150px;
+  }
+
+  .tree-node {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+
+    &__title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }
 </style>

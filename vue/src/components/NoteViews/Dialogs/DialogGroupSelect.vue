@@ -1,13 +1,11 @@
 <script lang="ts">
-import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import {ref} from 'vue'
+import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import {GroupItem} from '@/enum/kdbx'
 import {kService} from '@/api'
-import {TextBulletListTree16Regular} from '@vicons/fluent'
 
 export default defineComponent({
   name: 'DialogGroupSelect',
-  components: {TextBulletListTree16Regular},
   props: {
     visible: {
       type: Boolean,
@@ -41,25 +39,19 @@ export default defineComponent({
       }
     })
 
-    const selectedKeys = computed({
-      get(): string[] {
-        if (!groupUuid.value) {
-          return []
-        }
-        return [String(groupUuid.value)]
-      },
-      set(val: string[]) {
-        if (!val) {
-          val = []
-        }
-        groupUuid.value = val[0]
-      },
-    })
+    const handleNodeClick = (data: GroupItem) => {
+      groupUuid.value = data.uuid
+    }
 
     return {
       groupTree,
       mVisible,
-      selectedKeys,
+      groupUuid,
+      handleNodeClick,
+      treeProps: {
+        children: 'children',
+        label: 'title',
+      },
       handleOK(e: MouseEvent) {
         e.preventDefault()
 
@@ -69,28 +61,37 @@ export default defineComponent({
         emit('onSubmit', groupUuid.value)
         mVisible.value = false
       },
-      dialogIconRender() {
-        return h(TextBulletListTree16Regular)
-      },
     }
   },
 })
 </script>
 
 <template>
-  <n-modal v-model:show="mVisible" :icon="dialogIconRender" preset="dialog" title="Select Group">
-    <n-tree
-      :data="groupTree"
-      key-field="uuid"
-      label-field="title"
-      children-field="children"
-      selectable
-      default-expand-all
-      v-model:selected-keys="selectedKeys"
-    />
-    <n-space style="display: flex; justify-content: flex-end">
-      <n-button round @click="mVisible = false"> Cancel </n-button>
-      <n-button round type="primary" @click="handleOK"> OK </n-button>
-    </n-space>
-  </n-modal>
+  <el-dialog v-model="mVisible" title="Select Group" width="440px" append-to-body>
+    <div class="group-select-tree">
+      <el-tree
+        :data="groupTree"
+        node-key="uuid"
+        :props="treeProps"
+        :current-node-key="groupUuid"
+        highlight-current
+        default-expand-all
+        :expand-on-click-node="false"
+        @node-click="handleNodeClick"
+      />
+    </div>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="mVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="handleOK">OK</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
+
+<style lang="scss" scoped>
+.group-select-tree {
+  max-height: 50vh;
+  overflow: auto;
+}
+</style>

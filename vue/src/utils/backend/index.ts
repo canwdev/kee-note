@@ -1,16 +1,8 @@
-import Service from '../service'
-import electronService from './electron'
-import {API_PROXY_BASE} from '@/enum'
+import browserService from './browser'
 
-export const isElectron = '$electronAPI' in window
+/**
+ * KeeNote 纯浏览器版：所有数据库操作均在浏览器内通过 kdbxweb 完成。
+ */
+export * from './browser'
 
-let service
-if (isElectron) {
-  service = electronService
-} else {
-  service = Service({
-    baseURL: API_PROXY_BASE + '/keepass',
-  })
-}
-
-export default service
+export default browserService

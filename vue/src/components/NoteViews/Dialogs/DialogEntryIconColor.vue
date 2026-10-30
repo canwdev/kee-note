@@ -5,7 +5,6 @@ import {EntryItem} from '@/enum/kdbx'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import {Palette} from '@/enum'
 import DialogIconChooser from '@/components/NoteViews/Dialogs/DialogIconChooser.vue'
-import {Icons20Regular} from '@vicons/fluent'
 
 export default defineComponent({
   name: 'DialogEntryIconColor',
@@ -19,7 +18,7 @@ export default defineComponent({
       default: false,
     },
     entryDetail: {
-      type: Object as PropType<EntryItem>,
+      type: Object as PropType<EntryItem | null>,
       default: null,
     },
   },
@@ -34,11 +33,10 @@ export default defineComponent({
       swatches: Palette.map((i) => i.color),
       isShowIconChooser,
       handleSelectIcon(index) {
-        entryDetail.value.icon = index
+        if (entryDetail.value) {
+          entryDetail.value.icon = index
+        }
         isShowIconChooser.value = false
-      },
-      dialogIconRender() {
-        return h(Icons20Regular)
       },
     }
   },
@@ -46,53 +44,51 @@ export default defineComponent({
 </script>
 
 <template>
-  <n-modal
-    v-model:show="mVisible"
-    preset="dialog"
-    :icon="dialogIconRender"
-    title="Edit Icon & Color"
-  >
-    <n-list>
-      <n-list-item>
-        <n-thing title="Icon" />
-        <template #suffix>
-          <n-button @click="isShowIconChooser = true">
-            <IconDisplay
-              :icon="entryDetail.icon"
-              :bg-color="entryDetail.bgColor"
-              :fg-color="entryDetail.fgColor"
-            />
-          </n-button>
-        </template>
-      </n-list-item>
-      <n-list-item>
-        <n-thing title="Background Color" />
-        <template #suffix>
-          <n-color-picker
-            v-model:value="entryDetail.bgColor"
-            style="width: 150px; border-radius: 0"
-            :swatches="swatches"
-            :show-alpha="false"
-            :actions="['clear']"
-            :modes="['hex']"
+  <el-dialog v-model="mVisible" title="Edit Icon & Color" width="440px" append-to-body>
+    <div v-if="entryDetail" class="icon-color-list">
+      <div class="icon-color-row">
+        <span>Icon</span>
+        <el-button @click="isShowIconChooser = true">
+          <IconDisplay
+            :icon="entryDetail.icon"
+            :bg-color="entryDetail.bgColor"
+            :fg-color="entryDetail.fgColor"
           />
-        </template>
-      </n-list-item>
-      <n-list-item>
-        <n-thing title="Foreground Color" />
-        <template #suffix>
-          <n-color-picker
-            v-model:value="entryDetail.fgColor"
-            style="width: 150px; border-radius: 0"
-            :swatches="swatches"
-            :show-alpha="false"
-            :actions="['clear']"
-            :modes="['hex']"
-          />
-        </template>
-      </n-list-item>
-    </n-list>
+        </el-button>
+      </div>
+      <div class="icon-color-row">
+        <span>Background Color</span>
+        <el-color-picker
+          v-model="entryDetail.bgColor"
+          :predefine="swatches"
+          show-alpha
+        />
+      </div>
+      <div class="icon-color-row">
+        <span>Foreground Color</span>
+        <el-color-picker
+          v-model="entryDetail.fgColor"
+          :predefine="swatches"
+          show-alpha
+        />
+      </div>
+    </div>
 
     <DialogIconChooser v-model:visible="isShowIconChooser" @onSelectIcon="handleSelectIcon" />
-  </n-modal>
+  </el-dialog>
 </template>
+
+<style lang="scss" scoped>
+.icon-color-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vgo-space-3);
+}
+
+.icon-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vgo-space-3);
+}
+</style>

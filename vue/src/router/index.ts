@@ -1,27 +1,20 @@
 import {createRouter, createWebHashHistory} from 'vue-router'
-import LoginView from '@/views/Home/LoginView.vue'
 import UnlockView from '@/views/Home/UnlockView.vue'
-import {isElectron} from '@/utils/backend'
-import {LsKeys} from '@/enum'
+import {isDatabaseOpen} from '@/utils/backend'
 import pkg from '../../package.json'
 
 const constantRoutes = [
   {
     name: 'HomeView',
     path: '/',
-    component: isElectron ? UnlockView : LoginView,
-  },
-  {
-    name: 'EnvGenerator',
-    path: '/gen',
-    component: () => import('@/views/ServerManage/EnvGenerator.vue'),
+    component: UnlockView,
   },
   {
     name: 'NoteRoot',
     path: '/note',
-    redirect: '/note/view/list',
+    redirect: '/note/view',
     beforeEnter: () => {
-      if (!isElectron && !localStorage.getItem(LsKeys.LS_KEY_AUTHORIZATION)) {
+      if (!isDatabaseOpen()) {
         // reject the navigation
         return {name: 'HomeView'}
       }
@@ -46,14 +39,14 @@ const router = createRouter({
 })
 
 export const formatSiteTitle = (t?: string) => {
-  const title = `KeeNote ${isElectron ? '' : '(WebUI) '}v${pkg.version}`
+  const title = `KeeNote v${pkg.version}`
   if (!t) {
     return title
   }
   return `${t} - ${title}`
 }
 
-router.afterEach((to, _, failure) => {
+router.afterEach((to) => {
   document.title = formatSiteTitle(to?.meta?.title as string)
 })
 

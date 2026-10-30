@@ -43,13 +43,15 @@ export default defineComponent({
 
 <template>
   <div v-show="show" class="data-visualization">
-    <n-page-header class="nav-header" title="Data Visualization" @back="$emit('onBack')">
-      <template #extra>
-        <n-space align="center">
-          <n-button quaternary size="small" @click="getEntryList"> Refresh </n-button>
-        </n-space>
-      </template>
-    </n-page-header>
+    <div class="nav-header">
+      <div class="vgo-u-flex-wrap-center">
+        <el-button text @click="$emit('onBack')">
+          <span class="mdi mdi-arrow-left"></span>
+        </el-button>
+        <span class="nav-title">Data Visualization</span>
+      </div>
+      <el-button text size="small" @click="getEntryList">Refresh</el-button>
+    </div>
     <div v-if="isRenderContent" class="visualization-content">
       <AnnualHeatMap
         :calendar-data="calendarData"
@@ -71,8 +73,17 @@ export default defineComponent({
     position: sticky;
     top: 0;
     z-index: 10;
-    backdrop-filter: blur(10px);
+    background: var(--vgo-surface);
     padding: 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vgo-space-2);
+
+    .nav-title {
+      font-size: var(--vgo-font-lg);
+      font-weight: 600;
+    }
   }
   .visualization-content {
     margin-top: 16px;

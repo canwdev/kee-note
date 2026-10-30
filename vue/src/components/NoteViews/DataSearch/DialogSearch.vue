@@ -79,55 +79,99 @@ export default defineComponent({
 </script>
 
 <template>
-  <n-modal
-    :mask-closable="false"
-    :icon="dialogIconRender"
-    v-model:show="mVisible"
-    preset="dialog"
+  <el-dialog
+    v-model="mVisible"
     title="Search Database"
+    width="620px"
+    :close-on-click-modal="false"
+    append-to-body
   >
-    <n-input-group>
-      <n-button ghost @click="isShowSearchSettings = !isShowSearchSettings">
-        <n-icon size="16"><Settings20Filled /> </n-icon>
-      </n-button>
-      <n-input
+    <div class="search-bar">
+      <el-button @click="isShowSearchSettings = !isShowSearchSettings">
+        <el-icon><Settings20Filled /></el-icon>
+      </el-button>
+      <el-input
         placeholder="Search keyword in title or notes"
         clearable
-        v-model:value="searchKeyword"
+        v-model="searchKeyword"
         @keyup.enter="handleSearch"
       />
-      <n-button :disabled="isLoading" type="primary" ghost @click="handleSearch"> Search </n-button>
-    </n-input-group>
-
-    <n-collapse-transition :show="isShowSearchSettings"> <div>TBD</div> </n-collapse-transition>
-
-    <div style="margin-top: 16px; margin-left: -16px; margin-right: -16px">
-      <n-empty v-if="!resultList.length" description="No Data"> </n-empty>
-      <n-list hoverable clickable>
-        <n-list-item @click="handlePreview(item)" v-for="item in resultList" :key="item.uuid">
-          <template #prefix>
-            <IconDisplay
-              :icon="item.icon"
-              :size="28"
-              :bg-color="item.bgColor"
-              :fg-color="item.fgColor"
-            />
-          </template>
-
-          <n-thing :title="item.title">
-            <template #description>
-              <n-tag :bordered="false" size="small">
-                CT: {{ formatDate(item.creationTime) }}
-              </n-tag>
-            </template>
-          </n-thing>
-        </n-list-item>
-      </n-list>
+      <el-button :disabled="isLoading" type="primary" @click="handleSearch">Search</el-button>
     </div>
-  </n-modal>
+
+    <el-collapse-transition>
+      <div v-show="isShowSearchSettings" class="search-settings">TBD</div>
+    </el-collapse-transition>
+
+    <div class="search-results">
+      <el-empty v-if="!resultList.length" description="No Data" />
+      <div v-else class="search-result-list">
+        <div
+          class="vgo-list-item search-result-item"
+          v-for="item in resultList"
+          :key="item.uuid"
+          @click="handlePreview(item)"
+        >
+          <IconDisplay
+            :icon="item.icon"
+            :size="28"
+            :bg-color="item.bgColor"
+            :fg-color="item.fgColor"
+          />
+          <div class="search-result-item__content">
+            <div class="search-result-item__title">{{ item.title }}</div>
+            <el-tag size="small" type="info">
+              CT: {{ formatDate(item.creationTime) }}
+            </el-tag>
+          </div>
+        </div>
+      </div>
+    </div>
+  </el-dialog>
 
   <DialogEntryPreview
     v-model:visible="isShowPreviewModal"
-    :uuid="previewItem && previewItem.uuid"
+    :uuid="previewItem?.uuid"
   />
 </template>
+
+<style lang="scss" scoped>
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--vgo-space-2);
+
+  .el-input {
+    flex: 1;
+  }
+}
+
+.search-settings {
+  padding: var(--vgo-space-2) 0;
+  color: var(--vgo-text-secondary);
+}
+
+.search-results {
+  margin-top: var(--vgo-space-3);
+  max-height: 55vh;
+  overflow: auto;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: var(--vgo-space-2);
+  cursor: pointer;
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vgo-space-1);
+    align-items: flex-start;
+  }
+
+  &__title {
+    font-weight: 500;
+  }
+}
+</style>

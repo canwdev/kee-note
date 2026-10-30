@@ -32,23 +32,22 @@ export default defineComponent({
 
 <template>
   <span class="lunar-day" :class="{'is-term': lunarData.term}">
-    <n-popover trigger="click">
-      <template #trigger>
+    <el-popover trigger="click" :width="320">
+      <template #reference>
         <slot name="lunar" :data="lunarData">
-          <span class="cursor-pointer">{{
+          <span class="vgo-u-button-reset">{{
             lunarData.term ? lunarData.term : lunarData.dayCn
           }}</span>
         </slot>
       </template>
       <textarea
-        style="border: none; outline: none; resize: none"
-        class="font-code"
+        style="border: none; outline: none; resize: none; width: 100%"
+        class="vgo-u-font-code"
         readonly
         :value="JSON.stringify(lunarData, null, 2)"
         rows="14"
-        cols="24"
       ></textarea>
-    </n-popover>
+    </el-popover>
   </span>
 </template>
 
@@ -63,7 +62,7 @@ export default defineComponent({
       left: 0;
       right: 0;
       height: 5px;
-      background: rgba($primary, 0.2);
+      background: var(--vgo-primary-opacity);
     }
   }
 }
