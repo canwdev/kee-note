@@ -285,7 +285,7 @@ export default defineComponent({
                   title="Update Time" />
               </div>
 
-              <div class="">
+              <div class="vgo-u-flex-wrap-center">
                 <el-button size="small" text @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore"
                   title="Toggle more details">
                   <el-icon :size="18">
