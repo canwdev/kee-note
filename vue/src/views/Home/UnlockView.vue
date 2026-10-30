@@ -186,12 +186,15 @@ const handleChooseKeyFile = async () => {
 
 const handleGenerateKeyFile = async () => {
   try {
-    const buffer = await generateKeyFile(`${moment().format('YYYY-MM-DD')}.key`)
-    formModel.keyFileName = 'Generated key file (saved to downloads)'
-    formModel.keyFileBuffer = buffer
-    setLastKeyFile(buffer)
+    const result = await generateKeyFile(`${moment().format('YYYY-MM-DD')}.key`)
+    formModel.keyFileName = result.path
+    formModel.keyFileBuffer = result.buffer
+    setLastKeyFile(result.buffer)
+    window.$message.success('Key file saved: ' + result.path)
   } catch (e: any) {
-    window.$message.error(e?.message || 'Failed to generate key file')
+    if (e?.name !== 'AbortError') {
+      window.$message.error(e?.message || 'Failed to generate key file')
+    }
   }
 }
 

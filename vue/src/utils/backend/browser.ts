@@ -33,8 +33,6 @@ export type {
   PickSaveOptions,
 } from './file-access'
 
-const KDBX_MIME = 'application/octet-stream'
-
 /* -------------------------------------------------------------------------- */
 /*                                   argon2                                   */
 /* -------------------------------------------------------------------------- */
@@ -167,26 +165,29 @@ export async function pickKeyFile(): Promise<{name: string; buffer: ArrayBuffer}
   return {name: ref.name, buffer: await readFileBytes(ref)}
 }
 
-export function downloadBytes(bytes: Uint8Array | ArrayBuffer, filename: string, type = KDBX_MIME) {
-  const blob = new Blob([bytes as any], {type})
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.style.display = 'none'
-  document.body.appendChild(a)
-  a.click()
-  URL.revokeObjectURL(url)
-  document.body.removeChild(a)
-}
-
-/** 生成随机 key file 并下载 */
-export async function generateKeyFile(filename = 'KeeNote.key') {
+/** 生成随机 key file，弹出保存对话框写入文件（不自动下载） */
+export async function generateKeyFile(filename = 'KeeNote.key'): Promise<{
+  name: string
+  path: string
+  buffer: ArrayBuffer
+}> {
   const bytes = await kdbxweb.Credentials.createRandomKeyFile()
-  downloadBytes(bytes, filename, 'application/octet-stream')
   const copy = new Uint8Array(bytes.length)
   copy.set(bytes)
-  return copy.buffer
+  const buffer = copy.buffer
+
+  const ref = await pickSaveFile({
+    title: 'Save key file',
+    extensions: ['.key'],
+    defaultName: filename,
+  })
+  await writeFileBytes(ref, buffer)
+
+  return {
+    name: ref.name,
+    path: ref.kind === 'sdk' ? ref.path : ref.name,
+    buffer,
+  }
 }
 
 /* -------------------------------------------------------------------------- */

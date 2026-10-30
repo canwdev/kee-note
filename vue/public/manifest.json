@@ -1,8 +1,10 @@
 {
   "name": "KeeNote",
   "entry": "index.html",
-  "icon": "🔐",
-  "openWith": [".kdbx"],
+  "icon": "favicon.png",
+  "openWith": [
+    ".kdbx"
+  ],
   "singleInstance": false,
   "version": "4.4.0"
 }
