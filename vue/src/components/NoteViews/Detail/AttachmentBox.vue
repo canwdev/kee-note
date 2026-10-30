@@ -2,7 +2,6 @@
 import {defineComponent, PropType} from 'vue'
 import {EntryItem} from '@/enum/kdbx'
 import {getAttachment, removeAttachment, renameAttachment, uploadAttachment} from '@/api/keepass'
-import {Attach12Regular, MoreVertical16Regular} from '@vicons/fluent'
 import AttachmentPreview from '@/components/NoteViews/Detail/AttachmentPreview.vue'
 import DialogInput from '@/components/NoteViews/Dialogs/DialogInput.vue'
 
@@ -11,8 +10,6 @@ export default defineComponent({
   components: {
     DialogInput,
     AttachmentPreview,
-    Attach12Regular,
-    MoreVertical16Regular,
   },
   props: {
     entryDetail: {
@@ -120,7 +117,7 @@ export default defineComponent({
 
         <el-dropdown trigger="click" @command="handleMenuCommand">
           <el-button size="small" title="More">
-            <el-icon><MoreVertical16Regular /></el-icon>
+            <el-icon><span class="mdi mdi-dots-vertical" /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
@@ -137,7 +134,7 @@ export default defineComponent({
       </el-button-group>
 
       <el-button title="Add file" size="small" @click="handleAddAttachment">
-        <el-icon><Attach12Regular /></el-icon>
+        <el-icon><span class="mdi mdi-paperclip" /></el-icon>
       </el-button>
     </div>
 

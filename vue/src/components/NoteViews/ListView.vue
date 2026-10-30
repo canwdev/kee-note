@@ -8,7 +8,6 @@ import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import {useCommonActions} from '@/components/NoteViews/use-common-actions'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
 import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
-import {MoreVertical20Regular} from '@vicons/fluent'
 
 export default defineComponent({
   components: {
@@ -16,7 +15,6 @@ export default defineComponent({
     DialogEntryPreview,
     ContextMenu,
     IconDisplay,
-    MoreVertical20Regular,
   },
   setup() {
     const router = useRouter()
@@ -141,7 +139,7 @@ export default defineComponent({
           <template #default="{row}">
             <el-dropdown trigger="click" @command="handleMenuCommand">
               <el-button text size="small" @click.stop>
-                <el-icon :size="20"><MoreVertical20Regular /></el-icon>
+                <el-icon :size="20"><span class="mdi mdi-dots-vertical" /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>

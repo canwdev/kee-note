@@ -1,25 +1,14 @@
 <script lang="ts">
 import {defineComponent} from 'vue'
 import {getAttachment, renameAttachment} from '@/api/keepass'
-import {Icons20Regular} from '@vicons/fluent'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import mime from 'mime'
-import {
-  ArrowDownload16Regular,
-  ArrowPrevious20Regular,
-  ArrowNext20Regular,
-  Rename16Regular,
-} from '@vicons/fluent'
 import DialogInput from '@/components/NoteViews/Dialogs/DialogInput.vue'
 import {aLinkDownload} from '@/utils/export-import'
 
 export default defineComponent({
   name: 'AttachmentPreview',
   components: {
-    ArrowDownload16Regular,
-    ArrowPrevious20Regular,
-    ArrowNext20Regular,
-    Rename16Regular,
     DialogInput,
   },
   props: {
@@ -125,9 +114,6 @@ export default defineComponent({
       imgSrc,
       mVisible,
       pureText,
-      dialogIconRender() {
-        return h(Icons20Regular)
-      },
       mIndex,
       goNext() {
         if (mIndex.value >= attachmentNames.value.length - 1) {
@@ -172,14 +158,14 @@ export default defineComponent({
       <div class="vgo-u-flex-wrap-center preview-actions">
         <el-button-group>
           <el-button title="Prev" size="small" @click="goPrev">
-            <el-icon><ArrowPrevious20Regular /></el-icon>
+            <el-icon><span class="mdi mdi-chevron-left" /></el-icon>
           </el-button>
           <el-button title="Next" size="small" @click="goNext">
-            <el-icon><ArrowNext20Regular /></el-icon>
+            <el-icon><span class="mdi mdi-chevron-right" /></el-icon>
           </el-button>
         </el-button-group>
         <el-button title="Download" size="small" @click="handleDownload">
-          <el-icon><ArrowDownload16Regular /></el-icon>
+          <el-icon><span class="mdi mdi-download" /></el-icon>
         </el-button>
       </div>
 

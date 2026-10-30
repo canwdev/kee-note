@@ -2,12 +2,36 @@
  * 纯浏览器端 KDBX 后端。
  *
  * 完全运行在浏览器中，使用 kdbxweb 读写数据库；
- * 文件通过 File System Access API（FileSystemFileHandle）读写，
+ * 文件优先通过 FileLite SDK 读写，其次回退到 File System Access API，
  * 数据不会离开本机。
  */
 import * as kdbxweb from 'kdbxweb'
 import type {Kdbx, KdbxEntry, KdbxGroup} from 'kdbxweb'
 import type {EntryItem, GroupItem} from '@/enum/kdbx'
+import {
+  isFileSystemAccessSupported,
+  onExternalFileOpen,
+  pickOpenFile,
+  pickSaveFile,
+  readFileBytes,
+  writeFileBytes,
+  type FileRef,
+} from './file-access'
+
+export {
+  getFileLiteSdk,
+  isFileLiteSdkAvailable,
+  isFileSystemAccessSupported,
+  onExternalFileOpen,
+  getExternalFile,
+  setFileAccessHooks,
+} from './file-access'
+export type {
+  FileRef,
+  FileAccessHooks,
+  PickFileOptions,
+  PickSaveOptions,
+} from './file-access'
 
 const KDBX_MIME = 'application/octet-stream'
 
@@ -84,77 +108,63 @@ function argon2(
 kdbxweb.CryptoEngine.setArgon2Impl(argon2 as any)
 
 /* -------------------------------------------------------------------------- */
-/*                              file system handle                            */
+/*                                 file access                                */
 /* -------------------------------------------------------------------------- */
 
-let dbFileHandle: FileSystemFileHandle | null = null
+let dbFileRef: FileRef | null = null
 let lastKeyFile: ArrayBuffer | null = null
+let hasOpenedDatabase = false
 
-export const setDatabaseFileHandle = (handle: FileSystemFileHandle | null) => {
-  dbFileHandle = handle
+export const setDatabaseFileRef = (ref: FileRef | null) => {
+  dbFileRef = ref
 }
-export const getDatabaseFileHandle = () => dbFileHandle
-export const hasDatabaseFileHandle = () => Boolean(dbFileHandle)
-export const getDatabaseFileName = () => dbFileHandle?.name || ''
+export const setDatabaseFileHandle = (handle: FileSystemFileHandle | null) => {
+  dbFileRef = handle ? {kind: 'handle', handle, name: handle.name} : null
+}
+export const getDatabaseFileRef = () => dbFileRef
+export const getDatabaseFileHandle = () =>
+  dbFileRef?.kind === 'handle' ? dbFileRef.handle : null
+export const hasDatabaseFileHandle = () => Boolean(dbFileRef)
+export const hasDatabaseFile = hasDatabaseFileHandle
+export const getDatabaseFileName = () => dbFileRef?.name || ''
+export const getDatabaseFilePath = () => {
+  if (!dbFileRef) {
+    return ''
+  }
+  return dbFileRef.kind === 'sdk' ? dbFileRef.path : dbFileRef.name
+}
 export const setLastKeyFile = (buffer: ArrayBuffer | null) => {
   lastKeyFile = buffer
 }
 export const getLastKeyFile = () => lastKeyFile
 
-export const isFileSystemAccessSupported = () =>
-  typeof (window as any).showOpenFilePicker === 'function'
-
-const pickerTypes = (description: string, accept: Record<string, string[]>) => [
-  {description, accept},
-]
-
-/** 打开已存在的 kdbx 文件，保留 handle 用于后续保存 */
-export async function pickDatabaseFile(): Promise<FileSystemFileHandle> {
-  const picker = (window as any).showOpenFilePicker
-  if (!picker) {
-    throw new Error('Current browser does not support File System Access API')
-  }
-  const [handle] = await picker({
-    multiple: false,
-    mode: 'readwrite',
-    excludeAcceptAllOption: false,
-    types: pickerTypes('KeePass Database', {'application/octet-stream': ['.kdbx']}),
+/** 打开已存在的 kdbx 文件，记住文件引用用于后续保存 */
+export async function pickDatabaseFile(): Promise<FileRef> {
+  const ref = await pickOpenFile({
+    title: 'Open KeePass Database',
+    extensions: ['.kdbx'],
   })
-  dbFileHandle = handle
-  // 尽量在用户手势内申请写权限，之后的自动保存不再弹窗
-  try {
-    await ensureWritable(handle)
-  } catch (e) {
-    console.warn('[db] read/write permission not granted yet', e)
-  }
-  return handle
+  dbFileRef = ref
+  return ref
 }
 
-/** 新建 kdbx 文件（选择保存位置），保留 handle */
+/** 新建 kdbx 文件（选择保存位置），记住文件引用 */
 export async function pickDatabaseSaveFile(
   suggestedName = `KeeNote-${new Date().toISOString().slice(0, 10)}.kdbx`,
-): Promise<FileSystemFileHandle> {
-  const picker = (window as any).showSaveFilePicker
-  if (!picker) {
-    throw new Error('Current browser does not support File System Access API')
-  }
-  const handle = await picker({
-    suggestedName,
-    types: pickerTypes('KeePass Database', {'application/octet-stream': ['.kdbx']}),
+): Promise<FileRef> {
+  const ref = await pickSaveFile({
+    title: 'Save KeePass Database',
+    extensions: ['.kdbx'],
+    defaultName: suggestedName,
   })
-  dbFileHandle = handle
-  return handle
+  dbFileRef = ref
+  return ref
 }
 
 /** 选择 key file，返回其二进制内容 */
 export async function pickKeyFile(): Promise<{name: string; buffer: ArrayBuffer}> {
-  const picker = (window as any).showOpenFilePicker
-  if (!picker) {
-    throw new Error('Current browser does not support File System Access API')
-  }
-  const [handle] = await picker({multiple: false})
-  const file = await handle.getFile()
-  return {name: file.name, buffer: await file.arrayBuffer()}
+  const ref = await pickOpenFile({title: 'Choose key file', writable: false})
+  return {name: ref.name, buffer: await readFileBytes(ref)}
 }
 
 export function downloadBytes(bytes: Uint8Array | ArrayBuffer, filename: string, type = KDBX_MIME) {
@@ -255,19 +265,6 @@ function binaryToBytes(value: any): Uint8Array {
   return new Uint8Array(value)
 }
 
-async function ensureWritable(handle: FileSystemFileHandle) {
-  const anyHandle = handle as any
-  if (typeof anyHandle.queryPermission === 'function') {
-    let perm = await anyHandle.queryPermission({mode: 'readwrite'})
-    if (perm !== 'granted' && typeof anyHandle.requestPermission === 'function') {
-      perm = await anyHandle.requestPermission({mode: 'readwrite'})
-    }
-    if (perm !== 'granted') {
-      throw new Error('Write permission for the database file was denied')
-    }
-  }
-}
-
 /* -------------------------------------------------------------------------- */
 /*                              backend implementation                        */
 /* -------------------------------------------------------------------------- */
@@ -277,11 +274,11 @@ class BrowserKdbx {
   isNotSave = false
   private curEntryMap: Record<string, KdbxEntry> = {}
 
-  private get handle(): FileSystemFileHandle {
-    if (!dbFileHandle) {
+  private get fileRef(): FileRef {
+    if (!dbFileRef) {
       throw new Error('No database file selected')
     }
-    return dbFileHandle
+    return dbFileRef
   }
 
   private get isOpen() {
@@ -307,20 +304,12 @@ class BrowserKdbx {
   }
 
   private async writeDatabase(db: Kdbx) {
-    const buffer = await db.save()
-    // createWritable() 会在需要时由浏览器弹出写权限确认
-    const writable = await (this.handle as any).createWritable()
-    try {
-      await writable.write(buffer)
-    } finally {
-      await writable.close()
-    }
+    await writeFileBytes(this.fileRef, await db.save())
   }
 
   async open(params: any = {}) {
     const {password, keyFile} = params
-    const file = await this.handle.getFile()
-    const buffer = await file.arrayBuffer()
+    const buffer = await readFileBytes(this.fileRef)
     const keyFileBuffer = keyFile !== undefined ? keyFile : lastKeyFile
     if (keyFileBuffer) {
       lastKeyFile = keyFileBuffer
@@ -332,6 +321,7 @@ class BrowserKdbx {
     this.db = await kdbxweb.Kdbx.load(buffer, credentials)
     this.isNotSave = false
     this.curEntryMap = {}
+    hasOpenedDatabase = true
     return true
   }
 
@@ -350,6 +340,7 @@ class BrowserKdbx {
     this.db = db
     this.isNotSave = false
     this.curEntryMap = {}
+    hasOpenedDatabase = true
     return true
   }
 
@@ -357,6 +348,7 @@ class BrowserKdbx {
     this.db = null
     this.curEntryMap = {}
     this.isNotSave = false
+    hasOpenedDatabase = false
   }
 
   async save() {
@@ -423,7 +415,7 @@ class BrowserKdbx {
         versionMajor: header.versionMajor,
         versionMinor: header.versionMinor,
       },
-      dbPath: this.handle.name,
+      dbPath: getDatabaseFilePath(),
       meta: {
         name: meta.name,
         recycleBinEnabled: meta.recycleBinEnabled,
@@ -720,6 +712,13 @@ class BrowserKdbx {
 }
 
 const backend = new BrowserKdbx()
+
+// 宿主通过 FileLite SDK 的 onOpen 传入 .kdbx 时，未打开数据库的情况下直接采用它
+onExternalFileOpen((ref) => {
+  if (!hasOpenedDatabase) {
+    dbFileRef = ref
+  }
+})
 
 export const isDatabaseOpen = () => backend.checkDatabaseIsOpen()
 

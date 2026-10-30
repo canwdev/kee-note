@@ -1,7 +1,6 @@
 <script lang="ts">
 import {defineComponent} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
-import {Search20Filled, Settings20Filled} from '@vicons/fluent'
 import {kService} from '@/api'
 import {EntryItem} from '@/enum/kdbx'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
@@ -13,7 +12,6 @@ export default defineComponent({
   components: {
     DialogEntryPreview,
     IconDisplay,
-    Settings20Filled,
   },
   props: {
     visible: {
@@ -63,7 +61,6 @@ export default defineComponent({
 
     return {
       mVisible,
-      dialogIconRender: () => h(Search20Filled),
       searchKeyword,
       handleSearch,
       resultList,
@@ -88,7 +85,7 @@ export default defineComponent({
   >
     <div class="search-bar">
       <el-button @click="isShowSearchSettings = !isShowSearchSettings">
-        <el-icon><Settings20Filled /></el-icon>
+        <el-icon><span class="mdi mdi-cog" /></el-icon>
       </el-button>
       <el-input
         placeholder="Search keyword in title or notes"

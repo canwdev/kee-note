@@ -9,7 +9,9 @@ import type { MixedFormItems } from '@canwdev/vgo-ui'
 import {
   generateKeyFile,
   getDatabaseFileName,
+  getDatabaseFilePath,
   isFileSystemAccessSupported,
+  onExternalFileOpen,
   pickDatabaseFile,
   pickDatabaseSaveFile,
   pickKeyFile,
@@ -25,12 +27,26 @@ const isCreateMode = ref(false)
 const isBusy = ref(false)
 const isSupported = isFileSystemAccessSupported()
 
+const fileDisplayPath = (file: {name: string; path?: string}) => file.path || file.name
+
 const formModel = reactive({
-  fileName: getDatabaseFileName(),
+  fileName: getDatabaseFilePath() || getDatabaseFileName(),
   dbName: 'KeeNote',
   password: '',
   keyFileName: '',
   keyFileBuffer: null as ArrayBuffer | null,
+})
+
+let stopExternalOpenListener: (() => void) | null = null
+
+onMounted(() => {
+  stopExternalOpenListener = onExternalFileOpen((file) => {
+    formModel.fileName = fileDisplayPath(file)
+  })
+})
+
+onBeforeUnmount(() => {
+  stopExternalOpenListener?.()
 })
 
 const formItems = computed((): MixedFormItems[] => {
@@ -130,8 +146,8 @@ const formItems = computed((): MixedFormItems[] => {
 
 const handleChooseFile = async () => {
   try {
-    const handle = await pickDatabaseFile()
-    formModel.fileName = handle.name
+    const file = await pickDatabaseFile()
+    formModel.fileName = fileDisplayPath(file)
     formModel.password = ''
     setLastKeyFile(null)
     formModel.keyFileName = ''
@@ -146,8 +162,8 @@ const handleChooseFile = async () => {
 const handleChooseCreateFile = async () => {
   try {
     const suggested = `${moment().format('YYYY-MM-DD')}.kdbx`
-    const handle = await pickDatabaseSaveFile(suggested)
-    formModel.fileName = handle.name
+    const file = await pickDatabaseSaveFile(suggested)
+    formModel.fileName = fileDisplayPath(file)
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
       window.$message.error(e?.message || 'Failed to select file')
@@ -246,7 +262,7 @@ const toggleCreate = () => {
   if (isCreateMode.value) {
     setDatabaseFileHandle(null)
   } else {
-    formModel.fileName = getDatabaseFileName()
+    formModel.fileName = getDatabaseFilePath() || getDatabaseFileName()
   }
 }
 

@@ -30,7 +30,6 @@ import 'codemirror/theme/duotone-light.css'
 import 'codemirror/theme/lucario.css'
 import 'codemirror/theme/zenburn.css'
 import {useMainStore} from '@/store/main'
-import {TextBoxSettings24Regular} from '@vicons/fluent'
 import {useEditorSettingsStore} from '@/store/editor'
 
 const cmThemeList = [
@@ -192,9 +191,6 @@ export default defineComponent({
       ],
       showSettings() {
         isShowEditorSettings.value = true
-      },
-      dialogIconRender() {
-        return h(TextBoxSettings24Regular)
       },
     }
   },

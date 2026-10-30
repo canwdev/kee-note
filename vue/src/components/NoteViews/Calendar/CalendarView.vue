@@ -11,7 +11,6 @@ import {useSettingsStore} from '@/store/settings'
 import {useCnHoliday} from '@/components/NoteViews/Calendar/use-holiday'
 import {pad2Num} from '@/utils'
 import HolidayDisplay from '@/components/NoteViews/Calendar/HolidayDisplay.vue'
-import {CalendarCheckmark20Regular} from '@vicons/fluent'
 import DataVisualization from '@/components/NoteViews/DataVisualization/index.vue'
 import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
 import moment from 'moment/moment'
@@ -20,7 +19,6 @@ export default defineComponent({
   name: 'CalendarView',
   components: {
     DataVisualization,
-    CalendarCheckmark20Regular,
     HolidayDisplay,
     LunarDay,
     MiniList,
@@ -169,7 +167,7 @@ export default defineComponent({
           title="Data Visualization"
           @click="isShowDataVisualization = true"
         >
-          <CalendarCheckmark20Regular />
+          <span class="mdi mdi-calendar-check" />
         </el-icon>
       </template>
       <template #day="{day}">

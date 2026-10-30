@@ -8,15 +8,6 @@ import MarkdownEditor from '@/components/NoteViews/Detail/MarkdownEditor.vue'
 import DialogEntryIconColor from '@/components/NoteViews/Dialogs/DialogEntryIconColor.vue'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
-import {
-  TextBoxSettings24Regular,
-  ArrowLeft16Regular,
-  Save20Regular,
-  CalendarAdd20Regular,
-  CalendarEdit16Regular,
-  TextboxMore20Regular,
-  TextboxMore20Filled,
-} from '@vicons/fluent'
 import AttachmentBox from '@/components/NoteViews/Detail/AttachmentBox.vue'
 import { getEntryItemUpdateParams } from '@/utils/export-import'
 import { useEditorSettingsStore } from '@/store/editor'
@@ -31,14 +22,7 @@ export default defineComponent({
     DialogEntryIconColor,
     IconDisplay,
     DialogEntryPreview,
-    TextBoxSettings24Regular,
-    ArrowLeft16Regular,
-    Save20Regular,
-    CalendarAdd20Regular,
-    CalendarEdit16Regular,
     AttachmentBox,
-    TextboxMore20Regular,
-    TextboxMore20Filled,
   },
   setup() {
     const entryDetail = ref<EntryItem | null>(null)
@@ -259,7 +243,7 @@ export default defineComponent({
         <div class="header-space">
           <el-button text @click="handleBack">
             <el-icon :size="18">
-              <ArrowLeft16Regular />
+              <span class="mdi mdi-arrow-left" />
             </el-icon>&nbsp;Back
           </el-button>
 
@@ -283,7 +267,7 @@ export default defineComponent({
             <el-button :type="saveBtnInfo.type" :text="saveBtnInfo.text" :plain="saveBtnInfo.plain"
               :disabled="saveBtnInfo.disabled" @click="handleSave">
               <el-icon :size="18">
-                <Save20Regular />
+                <span class="mdi mdi-content-save" />
               </el-icon>&nbsp;{{ saveBtnInfo.label }}
             </el-button>
           </div>
@@ -301,19 +285,19 @@ export default defineComponent({
                   title="Update Time" />
               </div>
 
-              <div class="vgo-u-flex-wrap-center">
+              <div class="">
                 <el-button size="small" text @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore"
                   title="Toggle more details">
                   <el-icon :size="18">
-                    <TextboxMore20Filled v-if="editorSettingsStore.isShowMore" />
-                    <TextboxMore20Regular v-else />
+                    <span v-if="editorSettingsStore.isShowMore" class="mdi mdi-dots-horizontal-circle" />
+                    <span v-else class="mdi mdi-dots-horizontal-circle-outline" />
                   </el-icon>
                 </el-button>
 
                 <el-button size="small" text v-if="editorSettingsStore.isAdvancedEditor" @click="showEditorSettings"
                   title="Editor Settings">
                   <el-icon :size="18">
-                    <TextBoxSettings24Regular />
+                    <span class="mdi mdi-cog-outline" />
                   </el-icon>
                 </el-button>
               </div>
@@ -432,6 +416,9 @@ export default defineComponent({
       margin-left: auto;
       margin-right: auto;
       width: $min_width;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
 
       @media screen and (max-width: $min_width) {
         width: 100%;
@@ -450,13 +437,13 @@ export default defineComponent({
       .detail-infos {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
 
         .detail-info-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
+          gap: 8px;
         }
 
         @media screen and (max-height: 500px) {
@@ -479,7 +466,7 @@ export default defineComponent({
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           grid-template-rows: auto;
-          gap: 10px;
+          gap: 8px;
           padding-top: 10px;
 
           @media screen and (max-width: $min_width) {
