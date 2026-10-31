@@ -97,13 +97,13 @@ const optionList = computed((): VgoOptionItem[] => {
       children: [
         {
           label: formatSiteTitle(),
-          subtitle: 'https://github.com/canwdev/kee-note-v4',
+          subtitle: 'https://github.com/canwdev/kee-note',
           key: 'github',
           actionRender: () =>
             h(
               'a',
               {
-                href: 'https://github.com/canwdev/kee-note-v4',
+                href: 'https://github.com/canwdev/kee-note',
                 target: '_blank',
                 rel: 'nofollow noopener',
               },

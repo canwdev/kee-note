@@ -1,6 +1,8 @@
 # KeeNote (Browser)
 
 A secure, local-first note app powered by [kdbxweb](https://github.com/keeweb/kdbxweb) and Vue 3.
+Developed by [Canwdev](https://github.com/canwdev) — source, issues and releases live at
+[kee-note](https://github.com/canwdev/kee-note).
 Everything runs in the browser — there is no server and no Electron backend. Your `.kdbx`
 database never leaves your machine.
 
@@ -71,3 +73,7 @@ GitHub Actions**, and allow `contents: write` + `pages: write` for the workflow
   (`src/core/argon2.ts` + `argon2-worker.ts`).
 - The file handle only lives for the current page session. After a reload you
   need to pick the `.kdbx` file again (the password prompt is unchanged).
+
+## Author
+
+[Canwdev](https://github.com/canwdev) · <https://github.com/canwdev/kee-note> · <c2097@live.com>
