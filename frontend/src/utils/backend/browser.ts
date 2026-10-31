@@ -8,6 +8,14 @@
 import * as kdbxweb from 'kdbxweb'
 import type {Kdbx, KdbxEntry, KdbxGroup} from 'kdbxweb'
 import type {EntryItem, GroupItem} from '@/enum/kdbx'
+import {
+  clearActiveHistoryId,
+  getActiveHistorySnapshot,
+  rememberOpenedDatabase,
+  updateActiveHistoryKeyFile,
+  updateActiveHistorySnapshot,
+} from '@/utils/db-history'
+import { acquireDatabaseFileLock, getDatabaseLockName, releaseDatabaseFileLock } from './db-lock'
 import './argon2'
 import {
   isFileSystemAccessSupported,
@@ -26,6 +34,7 @@ export {
   onExternalFileOpen,
   getExternalFile,
   setFileAccessHooks,
+  requestFileRefPermission,
 } from './file-access'
 export type {
   FileRef,
@@ -234,45 +243,109 @@ class BrowserKdbx {
     return entry
   }
 
-  private async writeDatabase(db: Kdbx) {
-    await writeFileBytes(this.fileRef, await db.save())
+  private async writeDatabase(db: Kdbx): Promise<ArrayBuffer> {
+    const fileRef = this.fileRef
+    const data = await db.save()
+    const lockName = getDatabaseLockName(fileRef)
+    await writeFileBytes(fileRef, data)
+    // 宿主可能会规范化 FileLite 路径，锁需要跟随真实路径
+    if (getDatabaseLockName(fileRef) !== lockName) {
+      const acquired = await acquireDatabaseFileLock(fileRef)
+      if (!acquired) {
+        throw new Error(
+          `This database is already open in another tab: ${
+            fileRef.kind === 'sdk' ? fileRef.path : fileRef.name
+          }`,
+        )
+      }
+    }
+    return data
   }
 
   async open(params: any = {}) {
-    const {password, keyFile} = params
-    const buffer = await readFileBytes(this.fileRef)
-    const keyFileBuffer = keyFile !== undefined ? keyFile : lastKeyFile
-    if (keyFileBuffer) {
-      lastKeyFile = keyFileBuffer
+    const fileRef = this.fileRef
+    if (!(await acquireDatabaseFileLock(fileRef))) {
+      throw new Error(
+        `This database is already open in another tab: ${
+          fileRef.kind === 'sdk' ? fileRef.path : fileRef.name
+        }`,
+      )
     }
-    const credentials = new kdbxweb.Credentials(
-      password ? kdbxweb.ProtectedValue.fromString(String(password)) : null,
-      keyFileBuffer || null,
-    )
-    this.db = await kdbxweb.Kdbx.load(buffer, credentials)
-    this.isNotSave = false
-    this.curEntryMap = {}
-    hasOpenedDatabase = true
-    return true
+    try {
+      const {password, keyFile, keyFileName} = params
+      const keyFileBuffer = keyFile !== undefined ? keyFile : lastKeyFile
+      if (keyFileBuffer) {
+        lastKeyFile = keyFileBuffer
+      }
+      const credentials = new kdbxweb.Credentials(
+        password ? kdbxweb.ProtectedValue.fromString(String(password)) : null,
+        keyFileBuffer || null,
+      )
+      let buffer: ArrayBuffer
+      try {
+        buffer = await readFileBytes(fileRef)
+      } catch (e) {
+        // 刷新后 handle 可能暂时没有权限，使用上次的加密快照兜底
+        const snapshot = await getActiveHistorySnapshot()
+        if (!snapshot) {
+          throw e
+        }
+        console.warn('[db] failed to read database file, using cached snapshot', e)
+        buffer = snapshot
+      }
+      this.db = await kdbxweb.Kdbx.load(buffer, credentials)
+      this.isNotSave = false
+      this.curEntryMap = {}
+      hasOpenedDatabase = true
+      await rememberOpenedDatabase({
+        fileRef,
+        dbData: buffer,
+        keyFile: keyFileBuffer,
+        keyFileName,
+      })
+      return true
+    } catch (e) {
+      releaseDatabaseFileLock()
+      throw e
+    }
   }
 
   async createDatabase(params: any = {}) {
-    const {password, keyFile, name} = params
-    const keyFileBuffer = keyFile !== undefined ? keyFile : lastKeyFile
-    if (keyFileBuffer) {
-      lastKeyFile = keyFileBuffer
+    const fileRef = this.fileRef
+    if (!(await acquireDatabaseFileLock(fileRef))) {
+      throw new Error(
+        `This database is already open in another tab: ${
+          fileRef.kind === 'sdk' ? fileRef.path : fileRef.name
+        }`,
+      )
     }
-    const credentials = new kdbxweb.Credentials(
-      password ? kdbxweb.ProtectedValue.fromString(String(password)) : null,
-      keyFileBuffer || null,
-    )
-    const db = kdbxweb.Kdbx.create(credentials, name || 'My new db')
-    await this.writeDatabase(db)
-    this.db = db
-    this.isNotSave = false
-    this.curEntryMap = {}
-    hasOpenedDatabase = true
-    return true
+    try {
+      const {password, keyFile, keyFileName, name} = params
+      const keyFileBuffer = keyFile !== undefined ? keyFile : lastKeyFile
+      if (keyFileBuffer) {
+        lastKeyFile = keyFileBuffer
+      }
+      const credentials = new kdbxweb.Credentials(
+        password ? kdbxweb.ProtectedValue.fromString(String(password)) : null,
+        keyFileBuffer || null,
+      )
+      const db = kdbxweb.Kdbx.create(credentials, name || 'My new db')
+      const data = await this.writeDatabase(db)
+      this.db = db
+      this.isNotSave = false
+      this.curEntryMap = {}
+      hasOpenedDatabase = true
+      await rememberOpenedDatabase({
+        fileRef,
+        dbData: data,
+        keyFile: keyFileBuffer,
+        keyFileName,
+      })
+      return true
+    } catch (e) {
+      releaseDatabaseFileLock()
+      throw e
+    }
   }
 
   close() {
@@ -280,20 +353,23 @@ class BrowserKdbx {
     this.curEntryMap = {}
     this.isNotSave = false
     hasOpenedDatabase = false
+    clearActiveHistoryId()
+    releaseDatabaseFileLock()
   }
 
   async save() {
     if (!this.db) {
       throw new Error('Database is not open')
     }
-    await this.writeDatabase(this.db)
+    const data = await this.writeDatabase(this.db)
     this.isNotSave = false
+    await updateActiveHistorySnapshot(data)
     return true
   }
 
   async changeCredentials(params: any = {}) {
     const db = this.getDb()
-    const {password, keyFile} = params
+    const {password, keyFile, keyFileName} = params
     let changed = false
     if (password !== undefined && password !== null) {
       await db.credentials.setPassword(kdbxweb.ProtectedValue.fromString(String(password)))
@@ -306,6 +382,9 @@ class BrowserKdbx {
     }
     if (changed) {
       await this.save()
+    }
+    if (keyFile) {
+      await updateActiveHistoryKeyFile(keyFile, keyFileName)
     }
     return true
   }

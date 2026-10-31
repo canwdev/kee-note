@@ -1,14 +1,12 @@
-import {HistoryListItem, LdThemeType} from '@/enum/settings'
+import {LdThemeType} from '@/enum/settings'
 
 interface IStore {
   ldTheme: LdThemeType
   // 主题色
   themeColor: string
 
-  // Save kdbx opened history?
+  // 是否保存数据库打开历史（加密快照、key file、文件引用）
   isSaveHistory: boolean
-  historyList: HistoryListItem[]
-  lastOpenedHistoryItem: HistoryListItem | null
 
   // 是否启用日历
   isCalendarView: boolean
@@ -31,8 +29,6 @@ export const useSettingsStore = defineStore('settingsStore', {
       themeColor: '#189BA0',
 
       isSaveHistory: true,
-      historyList: [],
-      lastOpenedHistoryItem: null,
 
       isCalendarView: true,
       calendarWeekIndex: -1,

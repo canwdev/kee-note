@@ -3,7 +3,7 @@ import {useKeeStore} from '@/store/kee-store'
 import {EntryItem, GroupItem} from '@/enum/kdbx'
 import {kService} from '@/api'
 import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
-import {HistoryListItem} from '@/enum/settings'
+import {updateActiveHistoryLastGroup} from '@/utils/db-history'
 import {useSettingsStore} from '@/store/settings'
 import {hasDatabaseFileHandle} from '@/utils/backend'
 import {showInputPrompt} from '@/components/CommonUI/input-prompt'
@@ -56,21 +56,8 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
       const groupUuid = val[0]
 
       // 如果开启了历史记录，就设置lastGroupUuid
-      if (groupUuid && settingsStore.isSaveHistory && settingsStore.lastOpenedHistoryItem) {
-        const {dbPath} = settingsStore.lastOpenedHistoryItem
-
-        // 查找，更新并替换历史记录
-        const list: HistoryListItem[] = [...settingsStore.historyList]
-        const idx = list.findIndex((item: any) => item.dbPath === dbPath)
-        if (idx > -1) {
-          const item: HistoryListItem = {
-            ...settingsStore.historyList[idx],
-            lastGroupUuid: groupUuid,
-          }
-          list.splice(idx, 1, item)
-          console.log('set groupUuid', groupUuid)
-          settingsStore.historyList = list
-        }
+      if (groupUuid && settingsStore.isSaveHistory) {
+        void updateActiveHistoryLastGroup(groupUuid)
       }
 
       router.replace({
@@ -372,7 +359,6 @@ export const useKeeNoteEntryList = (options?) => {
 
 export const useKeeNoteSaveClose = () => {
   const keeStore = useKeeStore()
-  const settingsStore = useSettingsStore()
   const router = useRouter()
 
   // 手动保存
@@ -393,7 +379,6 @@ export const useKeeNoteSaveClose = () => {
     const {cleanupFn, isCloseApp = false} = options
     const doClose = async () => {
       await kService.closeDatabase()
-      settingsStore.lastOpenedHistoryItem = null
       keeStore.isDbOpened = false
       keeStore.dbInfo = null
       keeStore.isChanged = false

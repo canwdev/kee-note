@@ -360,7 +360,7 @@ export default defineComponent({
   <WindowStack :manager="detailWindows" :window-props="detailWindowProps">
     <template #title="{ win }">
       <IconDisplay v-if="win.data.icon !== undefined" class="detail-window-title-icon" :icon="win.data.icon"
-        :bg-color="win.data.bgColor" :fg-color="win.data.fgColor" :size="20" title="Double-click to close"
+        :bg-color="win.data.bgColor ?? undefined" :fg-color="win.data.fgColor ?? undefined" :size="20" title="Double-click to close"
         @dblclick.stop="detailWindows.requestClose(win.id)" />
       <span v-else class="mdi mdi-note-text-outline detail-window-title-icon" title="Double-click to close"
         @dblclick.stop="detailWindows.requestClose(win.id)" />

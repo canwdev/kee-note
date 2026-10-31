@@ -109,16 +109,40 @@ const pickerTypes = (extensions?: string[]) =>
     ? [{description: 'Files', accept: {'application/octet-stream': extensions}}]
     : undefined
 
-async function ensureWritable(handle: FileSystemFileHandle) {
+async function requestHandlePermission(
+  handle: FileSystemFileHandle,
+  mode: 'read' | 'readwrite',
+): Promise<boolean> {
   const anyHandle = handle as any
-  if (typeof anyHandle.queryPermission === 'function') {
-    let perm = await anyHandle.queryPermission({mode: 'readwrite'})
-    if (perm !== 'granted' && typeof anyHandle.requestPermission === 'function') {
-      perm = await anyHandle.requestPermission({mode: 'readwrite'})
+  if (typeof anyHandle.queryPermission !== 'function') {
+    return true
+  }
+  try {
+    let permission = await anyHandle.queryPermission({mode})
+    if (permission !== 'granted' && typeof anyHandle.requestPermission === 'function') {
+      permission = await anyHandle.requestPermission({mode})
     }
-    if (perm !== 'granted') {
-      throw new Error('Write permission for the database file was denied')
-    }
+    return permission === 'granted'
+  } catch (e) {
+    console.warn('[file] failed to request file permission', e)
+    return false
+  }
+}
+
+/** 重新申请文件权限（需在用户手势中调用），SDK 路径无需权限 */
+export async function requestFileRefPermission(
+  ref: FileRef | null | undefined,
+  mode: 'read' | 'readwrite' = 'readwrite',
+): Promise<boolean> {
+  if (!ref || ref.kind !== 'handle') {
+    return true
+  }
+  return requestHandlePermission(ref.handle, mode)
+}
+
+async function ensureWritable(handle: FileSystemFileHandle) {
+  if (!(await requestHandlePermission(handle, 'readwrite'))) {
+    throw new Error('Write permission for the database file was denied')
   }
 }
 
@@ -153,6 +177,11 @@ async function pickSaveWithFileSystem(options: PickSaveOptions): Promise<FileRef
     suggestedName: options.defaultName,
     types: pickerTypes(options.extensions),
   })
+  try {
+    await ensureWritable(handle)
+  } catch (e) {
+    console.warn('[file] write permission not granted yet', e)
+  }
   return {kind: 'handle', handle, name: handle.name}
 }
 
@@ -205,11 +234,14 @@ export async function pickSaveFile(options: PickSaveOptions = {}): Promise<FileR
       extensions: options.extensions,
       defaultName: options.defaultName,
     })
-    if (!result || !result.path) throw abortError()
+    if (!result) throw abortError()
+    const entry = result.items?.[0]
+    const path = result.path || entry?.path
+    if (!path) throw abortError()
     return {
       kind: 'sdk',
-      path: result.path,
-      name: result.name || basename(result.path),
+      path,
+      name: result.name || entry?.name || basename(path),
     }
   }
 
@@ -249,15 +281,32 @@ export async function writeFileBytes(ref: FileRef, data: ArrayBuffer): Promise<v
     if (!sdk) {
       throw new Error('FileLite SDK is no longer available')
     }
-    await sdk.writeFile(ref.path, data, {conflict: 'overwrite'})
+    if (typeof sdk.writeFile !== 'function') {
+      throw new Error('FileLite SDK does not support writing files')
+    }
+    const result = await sdk.writeFile(ref.path, data, {conflict: 'overwrite'})
+    // 宿主可能会规范化路径（例如自动补全扩展名），同步回引用以便后续保存仍指向真实文件
+    if (result?.path && result.path !== ref.path) {
+      ref.path = result.path
+    }
+    if (result?.name) {
+      ref.name = result.name
+    }
     return
   }
 
   const writable = await (ref.handle as any).createWritable()
   try {
     await writable.write(data)
-  } finally {
     await writable.close()
+  } catch (e) {
+    // 避免 close 提交半写入的文件，保留原文件内容
+    try {
+      await writable.abort()
+    } catch (abortError) {
+      console.warn('[file] failed to abort incomplete write', abortError)
+    }
+    throw e
   }
 }
 
