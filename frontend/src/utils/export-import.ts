@@ -1,6 +1,7 @@
 import {kService} from '@/api'
 import {EntryItem} from '@/enum/kdbx'
 import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
+import {showError} from '@/utils/feedback'
 
 export const aLinkDownload = (src: string, name?) => {
   try {
@@ -38,7 +39,7 @@ export const handleReadSelectedFile = (file, parseJson = false) => {
         resolve(val)
       } catch (error: any) {
         reject(error)
-        window.$message.error('Import failed! ' + error.message)
+        showError(error, 'Import failed!')
       }
     }
     reader.readAsText(file)

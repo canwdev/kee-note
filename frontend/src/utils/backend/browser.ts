@@ -11,11 +11,13 @@ import type {EntryItem, GroupItem} from '@/enum/kdbx'
 import {
   clearActiveHistoryId,
   getActiveHistorySnapshot,
+  getSnapshotForFileRef,
   rememberOpenedDatabase,
   updateActiveHistoryKeyFile,
   updateActiveHistorySnapshot,
 } from '@/utils/db-history'
 import { acquireDatabaseFileLock, getDatabaseLockName, releaseDatabaseFileLock } from './db-lock'
+import { beginGlobalLoading, endGlobalLoading, showError } from '@/utils/feedback'
 import './argon2'
 import {
   isFileSystemAccessSupported,
@@ -213,6 +215,19 @@ class BrowserKdbx {
   db: Kdbx | null = null
   isNotSave = false
   private curEntryMap: Record<string, KdbxEntry> = {}
+  // kdbxweb 的 save() 会先把数据库写成 XML，加密结束后再清空 xml。
+  // 两个保存同时进行时，后完成的那个会看到已被清空的 xml，抛出 InvalidState: no xml。
+  // 所有保存严格串行执行。
+  private saveQueue: Promise<unknown> = Promise.resolve()
+
+  private enqueueSave<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.saveQueue.then(task, task)
+    this.saveQueue = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
 
   private get fileRef(): FileRef {
     if (!dbFileRef) {
@@ -246,6 +261,9 @@ class BrowserKdbx {
   private async writeDatabase(db: Kdbx): Promise<ArrayBuffer> {
     const fileRef = this.fileRef
     const data = await db.save()
+    // 保存前先拷贝一份给历史快照：FileLite 宿主可能以 transfer 方式接收 ArrayBuffer，
+    // 写入后原 buffer 会被 detach 或改动，不能再用来更新快照。
+    const snapshotData = data.slice(0)
     const lockName = getDatabaseLockName(fileRef)
     await writeFileBytes(fileRef, data)
     // 宿主可能会规范化 FileLite 路径，锁需要跟随真实路径
@@ -259,10 +277,16 @@ class BrowserKdbx {
         )
       }
     }
-    return data
+    return snapshotData
+  }
+
+  private async getRecoverySnapshot(fileRef: FileRef): Promise<ArrayBuffer | null> {
+    return (await getActiveHistorySnapshot()) || (await getSnapshotForFileRef(fileRef))
   }
 
   async open(params: any = {}) {
+    // 先等上一次保存写完，避免读到写到一半的文件
+    await this.saveQueue
     const fileRef = this.fileRef
     if (!(await acquireDatabaseFileLock(fileRef))) {
       throw new Error(
@@ -282,21 +306,60 @@ class BrowserKdbx {
         keyFileBuffer || null,
       )
       let buffer: ArrayBuffer
+      let readFromFile = false
+      let loadedFromSnapshot = false
       try {
         buffer = await readFileBytes(fileRef)
+        readFromFile = true
       } catch (e) {
         // 刷新后 handle 可能暂时没有权限，使用上次的加密快照兜底
-        const snapshot = await getActiveHistorySnapshot()
+        const snapshot = await this.getRecoverySnapshot(fileRef)
         if (!snapshot) {
           throw e
         }
         console.warn('[db] failed to read database file, using cached snapshot', e)
         buffer = snapshot
+        loadedFromSnapshot = true
       }
-      this.db = await kdbxweb.Kdbx.load(buffer, credentials)
+
+      let db: Kdbx
+      try {
+        db = await kdbxweb.Kdbx.load(buffer, credentials)
+      } catch (loadError) {
+        // 文件能读到但无法解析（例如被旧版本的并发保存写坏、尾部被截断），
+        // 尝试历史中的加密快照；快照是在成功保存后写入的，通常仍然可用。
+        const snapshot = loadedFromSnapshot ? null : await this.getRecoverySnapshot(fileRef)
+        if (!snapshot) {
+          throw loadError
+        }
+        console.warn('[db] failed to load database file, trying cached snapshot', loadError)
+        try {
+          db = await kdbxweb.Kdbx.load(snapshot, credentials)
+        } catch {
+          // 快照也无法用同一凭据解锁时，保留原始文件错误
+          throw loadError
+        }
+        buffer = snapshot
+        loadedFromSnapshot = true
+      }
+
+      this.db = db
       this.isNotSave = false
       this.curEntryMap = {}
       hasOpenedDatabase = true
+
+      // 文件已损坏但快照可用：立即用快照写回，修复磁盘上的数据库文件
+      if (loadedFromSnapshot && readFromFile) {
+        try {
+          buffer = await this.writeDatabase(db)
+          console.info('[db] repaired corrupted database file from cached snapshot')
+        } catch (repairError) {
+          // 修复失败也不影响本次解锁，但标记为未保存，避免用户以为磁盘文件已正常
+          this.isNotSave = true
+          console.warn('[db] failed to repair database file', repairError)
+        }
+      }
+
       await rememberOpenedDatabase({
         fileRef,
         dbData: buffer,
@@ -361,10 +424,16 @@ class BrowserKdbx {
     if (!this.db) {
       throw new Error('Database is not open')
     }
-    const data = await this.writeDatabase(this.db)
-    this.isNotSave = false
-    await updateActiveHistorySnapshot(data)
-    return true
+    return this.enqueueSave(async () => {
+      const db = this.db
+      if (!db) {
+        throw new Error('Database is not open')
+      }
+      const data = await this.writeDatabase(db)
+      this.isNotSave = false
+      await updateActiveHistorySnapshot(data)
+      return true
+    })
   }
 
   async changeCredentials(params: any = {}) {
@@ -761,24 +830,31 @@ const handlers: Record<string, (params?: any) => any> = {
   'search-database': (params) => backend.searchDatabase(params),
 }
 
+// 这些只是廉价的状态查询，不需要全屏 loading
+const noLoadingRoutes = new Set(['check-is-open', 'check-is-not-save'])
+
 const browserService = {
   async post(url: string, params?: any, _options?: any) {
     const handler = handlers[url]
     if (!handler) {
-      throw new Error(`Unsupported browser backend route: ${url}`)
+      const error = new Error(`Unsupported browser backend route: ${url}`)
+      showError(error)
+      throw error
+    }
+    const withLoading = !noLoadingRoutes.has(url)
+    if (withLoading) {
+      beginGlobalLoading()
     }
     try {
-      ;(window as any).$loadingBar?.start()
-      const res = await handler(params)
-      ;(window as any).$loadingBar?.done()
-      return res
+      return await handler(params)
     } catch (error: any) {
-      ;(window as any).$loadingBar?.done()
-      ;(window as any).$notification?.error({
-        message: error?.message || String(error),
-        title: 'KeeNote',
-      })
+      // 统一在这里提示一次，调用方 catch 里再提示会被去重
+      showError(error)
       throw error
+    } finally {
+      if (withLoading) {
+        endGlobalLoading()
+      }
     }
   },
   on() {

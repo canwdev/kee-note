@@ -69,6 +69,11 @@ a:hover {
 //  }
 //}
 
+// 全局 kdbx 操作 loading：盖住所有界面（包括弹窗）
+.kee-global-loading.is-fullscreen {
+  z-index: 3000 !important;
+}
+
 .fade-scale-enter-active,
 .fade-scale-leave-active {
   transform: scale(1);

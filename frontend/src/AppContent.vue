@@ -6,12 +6,7 @@ import {useSettingsStore} from '@/store/settings'
 import {useKeeStore} from '@/store/kee-store'
 import {useBeforeUnload} from '@/hooks/use-changed'
 import dialog from '@/utils/dialog'
-import {ElMessage, ElNotification} from 'element-plus'
-import NProgress from 'nprogress'
-
-NProgress.configure({
-  showSpinner: true,
-})
+import {ElMessage} from 'element-plus'
 
 export default defineComponent({
   components: {
@@ -23,8 +18,6 @@ export default defineComponent({
 
     window.$message = ElMessage
     window.$dialog = dialog
-    window.$notification = ElNotification
-    window.$loadingBar = NProgress
 
     const settingsVisible = ref(false)
     const handleShowSettings = () => {

@@ -468,7 +468,7 @@ export async function rememberOpenedDatabase(options: RememberDatabaseOptions): 
   }
 }
 
-/** 文件读取失败时，用历史里的加密快照兜底解锁 */
+/** 文件读取/解析失败时，用历史里的加密快照兜底解锁 */
 export async function getActiveHistorySnapshot(): Promise<ArrayBuffer | null> {
   if (!activeHistoryId) {
     return null
@@ -478,6 +478,23 @@ export async function getActiveHistorySnapshot(): Promise<ArrayBuffer | null> {
     return snapshot?.data || null
   } catch (e) {
     console.warn('[history] failed to read database snapshot', e)
+    return null
+  }
+}
+
+/** 按文件引用查找其加密快照，用于手动选文件时也能从历史恢复 */
+export async function getSnapshotForFileRef(
+  fileRef: FileRef,
+): Promise<ArrayBuffer | null> {
+  try {
+    const record = await findDbHistoryByFileRef(fileRef)
+    if (!record) {
+      return null
+    }
+    const snapshot = await getSnapshot(record.id)
+    return snapshot?.data || null
+  } catch (e) {
+    console.warn('[history] failed to read snapshot for file', e)
     return null
   }
 }

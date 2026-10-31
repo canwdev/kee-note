@@ -16,6 +16,7 @@ import { useSettingsStore } from '@/store/settings'
 import { useKeeNoteSaveClose } from '@/hooks/use-keenote'
 import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
 import {
+  detailWindows,
   setDetailWindowDirty,
   updateDetailWindowInfo,
   updateDetailWindowSaveState,
@@ -58,7 +59,17 @@ export default defineComponent({
       window.removeEventListener('keydown', listenShortcuts)
     })
 
+    // 多个详情窗口同时挂载时会各自监听 window 的 keydown，
+    // 只让当前激活的窗口响应，避免一次 Ctrl+S 触发多次并发保存。
+    const isActiveDetailWindow = () => {
+      const win = detailWindows.findByKey(props.uuid)
+      return Boolean(win && detailWindows.activeId === win.id)
+    }
+
     const listenShortcuts = (event) => {
+      if (!isActiveDetailWindow()) {
+        return
+      }
       if (event.ctrlKey || event.metaKey) {
         const key = String.fromCharCode(event.which).toLowerCase()
         switch (key) {

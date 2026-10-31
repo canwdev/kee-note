@@ -46,6 +46,15 @@ const confirmDiscardChanges = async (win: any) => {
 }
 
 export const openDetailWindow = (uuid: string, title = 'Note') => {
+  // 窗口已存在时只激活，不要用新的空 data 覆盖它。
+  // vgo-ui 的 open() 在 key 命中时会执行 existing.data = data，
+  // 直接再次 open 会丢掉标题图标、颜色和保存状态，图标会退回默认值。
+  const existing = detailWindows.findByKey(uuid)
+  if (existing) {
+    detailWindows.activate(existing.id)
+    return existing
+  }
+
   const win = detailWindows.open(
     {
       uuid,

@@ -1,11 +1,8 @@
-import {ElMessage, ElNotification} from 'element-plus'
-import NProgress from 'nprogress'
+import {ElMessage} from 'element-plus'
 
 declare global {
   interface Window {
     $message: typeof ElMessage
     $dialog: any
-    $notification: typeof ElNotification
-    $loadingBar: NProgress
   }
 }

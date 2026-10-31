@@ -107,7 +107,7 @@ export default defineComponent({
         filename: filename.value,
       })
 
-      fileMimeType.value = mime.getType(filename.value)
+      fileMimeType.value = mime.getType(filename.value) ?? ''
       blobData.value = blob
       imgSrc.value = URL.createObjectURL(blob)
     }

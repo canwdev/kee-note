@@ -34,6 +34,7 @@ import {
   setDatabaseFileRef,
   setLastKeyFile,
 } from '@/utils/backend'
+import { showError } from '@/utils/feedback'
 import moment from 'moment/moment'
 
 const router = useRouter()
@@ -201,7 +202,7 @@ const handleChooseFile = async () => {
     detachHistory()
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
-      window.$message.error(e?.message || 'Failed to open file')
+      showError(e, 'Failed to open file')
     }
   }
 }
@@ -214,7 +215,7 @@ const handleChooseCreateFile = async () => {
     detachHistory()
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
-      window.$message.error(e?.message || 'Failed to select file')
+      showError(e, 'Failed to select file')
     }
   }
 }
@@ -227,7 +228,7 @@ const handleChooseKeyFile = async () => {
     setLastKeyFile(buffer)
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
-      window.$message.error(e?.message || 'Failed to read key file')
+      showError(e, 'Failed to read key file')
     }
   }
 }
@@ -241,7 +242,7 @@ const handleGenerateKeyFile = async () => {
     window.$message.success('Key file saved: ' + result.path)
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
-      window.$message.error(e?.message || 'Failed to generate key file')
+      showError(e, 'Failed to generate key file')
     }
   }
 }
@@ -393,7 +394,7 @@ const handleSubmit = async () => {
     keeStore.isDbOpened = false
     console.error(e)
     // kdbxweb throws a generic error for wrong password / corrupted file
-    window.$message.error(e?.message || 'Failed to open database')
+    showError(e, 'Failed to open database')
   } finally {
     isBusy.value = false
   }
