@@ -1,3 +1,6 @@
+/** 未保存修改的标记：显示在标题前 / 标题后 */
+export const UNSAVED_MARK = '•'
+
 type DbInfo = {
   header: {
     compression: number

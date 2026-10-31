@@ -98,8 +98,8 @@ export default defineComponent({
 
 <template>
   <div class="attachment-box">
-    <div class="vgo-u-flex-wrap-center">
-      <label>Attachments</label>
+    <div class="attachment-row vgo-u-flex-wrap-center">
+      <label class="attachment-label">Attachments</label>
       <el-button-group v-for="(item, index) in entryDetail.attachmentNames" :key="item">
         <el-button @click="handlePreviewItem(item, index)">{{ item }}</el-button>
 
@@ -125,10 +125,21 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .attachment-box {
-  margin-top: 8px;
+  // 与 DetailView 中的 extra-item 保持一致的「标签 + 控件」样式
+  .attachment-row {
+    align-items: center;
+    gap: 8px;
+  }
 
-  label {
-    font-size: 12px;
+  .attachment-label {
+    flex: 0 0 auto;
+    width: 64px;
+    text-align: right;
+    font-size: var(--vgo-font-sm);
+    line-height: 1.3;
+    color: var(--vgo-text-secondary);
+    white-space: nowrap;
+    user-select: none;
   }
 }
 </style>

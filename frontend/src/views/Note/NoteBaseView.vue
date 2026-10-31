@@ -307,37 +307,39 @@ export default defineComponent({
 
 <template>
   <div class="note-layout">
-    <div class="nav-header-content">
+    <div class="nav-header-content vgo-panel vgo-panel--flat">
       <div class="vgo-u-flex-wrap-center">
-        <span class="logo-icon mdi mdi-lock"> </span>
-        <span class="note-title"> KeeNote {{ keeStore.isDirty ? '*' : '' }}</span>
+        <span class="logo-icon  mdi mdi-lock"> </span>
+        <span class="note-title"> KeeNote {{ keeStore.isDirty ? '•' : '' }}</span>
 
-        <button class="vgo-u-button-reset save-button" :class="{ 'is-dirty': keeStore.isDirty }"
-          :disabled="!keeStore.isDirty" :title="keeStore.isDirty ? 'Save (Ctrl+S)' : 'All changes saved'"
-          @click="saveDatabase">
-          <span class="mdi" :class="keeStore.isDirty ? 'mdi-content-save' : 'mdi-content-save-check-outline'" />
+        <button class="vgo-button vgo-button--text vgo-button--icon save-button"
+          :class="{ 'is-dirty': keeStore.isDirty }" :disabled="!keeStore.isDirty"
+          :title="keeStore.isDirty ? 'Save (Ctrl+S)' : 'All changes saved'" @click="saveDatabase">
+          <span class="mdi vgo-u-icon-md"
+            :class="keeStore.isDirty ? 'mdi-content-save' : 'mdi-content-save-check-outline'" />
         </button>
       </div>
 
       <div class="vgo-u-flex-wrap-center">
-        <button class="vgo-u-button-reset" :title="keeStore.isDbOpened ? 'Lock' : 'Unlock'" @click="handleToggleLock">
-          <span v-if="keeStore.isDbOpened" class="mdi mdi-lock-outline"></span>
-          <span class="mdi mdi-key" v-else></span>
+        <button class="vgo-button vgo-button--text vgo-button--icon" :title="keeStore.isDbOpened ? 'Lock' : 'Unlock'"
+          @click="handleToggleLock">
+          <span v-if="keeStore.isDbOpened" class="vgo-u-icon-md mdi mdi-lock-outline"></span>
+          <span class="vgo-u-icon-md mdi mdi-key" v-else></span>
         </button>
 
-        <button class="vgo-u-button-reset" title="Search" @click="handleOpenSearch">
-          <span class="mdi mdi-magnify"></span>
+        <button class="vgo-button vgo-button--text vgo-button--icon" title="Search" @click="handleOpenSearch">
+          <span class="vgo-u-icon-md mdi mdi-magnify"></span>
         </button>
 
         <MenuTrigger v-if="createMenuOptions.length" :items="createMenuOptions">
-          <button class="vgo-u-button-reset" title="Create">
-            <span class="mdi mdi-plus"></span>
+          <button class="vgo-button vgo-button--text vgo-button--icon" title="Create">
+            <span class="vgo-u-icon-md mdi mdi-plus"></span>
           </button>
         </MenuTrigger>
 
         <MenuTrigger :items="menuOptions">
-          <button class="vgo-u-button-reset" title="Menu">
-            <span class="mdi mdi-dots-vertical"></span>
+          <button class="vgo-button vgo-button--text vgo-button--icon" title="Menu">
+            <span class="vgo-u-icon-md mdi mdi-dots-vertical"></span>
           </button>
         </MenuTrigger>
       </div>
@@ -378,10 +380,10 @@ export default defineComponent({
         <IconDisplay v-if="win.data.icon !== undefined" class="detail-window-title-icon" :icon="win.data.icon"
           :bg-color="win.data.bgColor ?? undefined" :fg-color="win.data.fgColor ?? undefined" :size="20"
           title="Double-click to close" @dblclick.stop="noteWindows.requestClose(win.id)" />
-        <span v-else class="mdi mdi-note-text-outline detail-window-title-icon" title="Double-click to close"
-          @dblclick.stop="noteWindows.requestClose(win.id)" />
+        <span v-else class="vgo-u-icon-md mdi mdi-note-text-outline detail-window-title-icon"
+          title="Double-click to close" @dblclick.stop="noteWindows.requestClose(win.id)" />
       </template>
-      <span v-else class="mdi mdi-magnify detail-window-title-icon" title="Double-click to close"
+      <span v-else class="vgo-u-icon-md mdi mdi-magnify detail-window-title-icon" title="Double-click to close"
         @dblclick.stop="noteWindows.requestClose(win.id)" />
       <span class="detail-window-title-text">{{ win.title }}</span>
     </template>
@@ -418,7 +420,7 @@ export default defineComponent({
     gap: 16px;
     border-bottom: 1px solid var(--vgo-border);
 
-    .vgo-u-button-reset {
+    .vgo-button vgo-button--text vgo-button--icon {
       .mdi {
         font-size: 24px;
       }

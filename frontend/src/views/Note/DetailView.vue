@@ -8,6 +8,9 @@ import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
 import AttachmentBox from '@/components/NoteViews/Detail/AttachmentBox.vue'
 import { useEditorSettingsStore } from '@/store/editor'
+import { copyText } from '@/utils/clipboard'
+import { generatePassword } from '@/utils/password'
+import { ElMessageBox } from 'element-plus'
 import {
   noteWindows,
   updateDetailWindowInfo,
@@ -130,6 +133,103 @@ export default defineComponent({
       emit('close')
     }
 
+    // ---------------- 复制 Username / Password / URL ----------------
+    type CopyableField = 'UserName' | 'Password' | 'URL'
+
+    const copyFieldLabels: Record<CopyableField, string> = {
+      UserName: 'Username',
+      Password: 'Password',
+      URL: 'URL',
+    }
+
+    // 记录刚刚复制成功的字段，用于短暂显示对勾图标
+    const copiedField = ref<CopyableField | ''>('')
+    let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearCopiedTimer = () => {
+      if (copiedTimer !== null) {
+        clearTimeout(copiedTimer)
+        copiedTimer = null
+      }
+    }
+
+    onBeforeUnmount(clearCopiedTimer)
+
+    const copyField = async (field: CopyableField) => {
+      const label = copyFieldLabels[field]
+      const value = entryDetail.value?.fieldsV2?.[field] || ''
+      if (!value) {
+        window.$message?.warning(`${label} is empty`)
+        return
+      }
+
+      const ok = await copyText(value)
+      if (!ok) {
+        window.$message?.error(`Failed to copy ${label}`)
+        return
+      }
+
+      copiedField.value = field
+      window.$message?.success(`${label} copied`)
+      clearCopiedTimer()
+      copiedTimer = setTimeout(() => {
+        copiedField.value = ''
+        copiedTimer = null
+      }, 1500)
+    }
+
+    // ---------------- 生成密码 / 访问网址 ----------------
+    const handleGeneratePassword = async () => {
+      const fields = entryDetail.value?.fieldsV2
+      if (!fields) {
+        return
+      }
+
+      // 避免误点覆盖已有密码
+      if (fields.Password) {
+        try {
+          await ElMessageBox.confirm(
+            'Overwrite the current password with a new random one?',
+            'Generate password',
+            {
+              type: 'warning',
+              confirmButtonText: 'Generate',
+              cancelButtonText: 'Cancel',
+            },
+          )
+        } catch {
+          return
+        }
+      }
+
+      fields.Password = generatePassword()
+      window.$message?.success('Strong password generated')
+    }
+
+    /** 规范化用户输入的网址，只允许 http(s)/mailto，其他协议直接拒绝 */
+    const normalizeUrl = (raw: string) => {
+      const url = raw.trim()
+      if (!url) {
+        return ''
+      }
+      if (/^(https?:\/\/|mailto:)/i.test(url)) {
+        return url
+      }
+      if (/^[a-z][a-z\d+.-]*:/i.test(url)) {
+        return ''
+      }
+      return `https://${url}`
+    }
+
+    const handleVisitUrl = () => {
+      const url = normalizeUrl(entryDetail.value?.fieldsV2?.URL || '')
+      if (!url) {
+        window.$message?.warning('Please input a valid URL first')
+        return
+      }
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+
     return {
       editorSettingsStore,
       entryDetail,
@@ -144,6 +244,10 @@ export default defineComponent({
       isShowPreviewModal,
       titleInputRef,
       loadEntryDetail,
+      copiedField,
+      copyField,
+      handleGeneratePassword,
+      handleVisitUrl,
     }
   },
 })
@@ -155,58 +259,103 @@ export default defineComponent({
       <div v-if="entryDetail && entryDetail.fieldsV2" class="detail-card-wrap">
         <div class="detail-card">
           <div class="detail-infos">
-            <div class="detail-info-row">
-              <div class="vgo-u-flex-wrap-center">
-                <button class="vgo-button vgo-button--icon vgo-entry-icon-button" title="Change Icon & Color"
-                  @click="isShowIconEdit = true">
-                  <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor" :fg-color="entryDetail.fgColor"
-                    :size="20" />
-                </button>
-                <el-date-picker v-model="creationTime" type="datetime" title="Create Time" />
-                <el-date-picker :model-value="lastModTime" type="datetime" disabled title="Update Time" />
-              </div>
+            <div class="detail-title-row">
+              <button class="vgo-button vgo-button--icon vgo-button--text vgo-entry-icon-button"
+                title="Change Icon & Color" @click="isShowIconEdit = true">
+                <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor" :fg-color="entryDetail.fgColor"
+                  :size="20" />
+              </button>
 
-              <div class="vgo-u-flex-wrap-center">
+              <el-input ref="titleInputRef" v-model="entryDetail.fieldsV2.Title" type="text" placeholder="Title"
+                class="detail-title-input" />
 
-                <button class="vgo-button vgo-button--icon" @click="isShowPreviewModal = true" title="Preview (Ctrl+/)">
+              <div class="detail-info-actions">
+                <button class="vgo-button vgo-button--icon vgo-button--text" @click="isShowPreviewModal = true"
+                  title="Preview (Ctrl+/)">
                   <span class="mdi mdi-eye-outline" />
                 </button>
 
-                <button class="vgo-button vgo-button--icon"
+                <button class="vgo-button vgo-button--icon vgo-button--text"
                   @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore" title="Toggle more details">
                   <span v-if="editorSettingsStore.isShowMore" class="mdi mdi-dots-horizontal-circle" />
                   <span v-else class="mdi mdi-dots-horizontal-circle-outline" />
                 </button>
 
-                <button v-if="editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon"
+                <button v-if="editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon vgo-button--text"
                   @click="showEditorSettings" title="Editor Settings">
                   <span class="mdi mdi-cog-outline" />
                 </button>
 
-                <button v-if="!editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon"
+                <button v-if="!editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon vgo-button--text"
                   @click="editorSettingsStore.isAdvancedEditor = true" title="Enable HyperMD Editor">
                   <span class="mdi mdi-text-box-edit-outline" />
                 </button>
               </div>
             </div>
 
-            <el-input ref="titleInputRef" v-model="entryDetail.fieldsV2.Title" type="text" placeholder="Title" />
+            <div class="detail-dates">
+              <div class="date-item">
+                <label class="date-label">Created</label>
+                <el-date-picker v-model="creationTime" type="datetime" size="small" format="YYYY-MM-DD HH:mm"
+                  title="Create Time" aria-label="Create Time" />
+              </div>
+
+              <div class="date-item">
+                <label class="date-label">Updated</label>
+                <el-date-picker :model-value="lastModTime" type="datetime" size="small" format="YYYY-MM-DD HH:mm"
+                  disabled title="Update Time" aria-label="Update Time" />
+              </div>
+            </div>
 
             <el-collapse-transition>
-              <div v-show="entryDetail && editorSettingsStore.isShowMore">
+              <div v-show="entryDetail && editorSettingsStore.isShowMore" class="detail-more">
                 <div class="extra-info">
                   <div class="extra-item">
-                    <label>Username</label>
-                    <el-input v-model="entryDetail.fieldsV2.UserName" placeholder="" />
+                    <label class="extra-label">Username</label>
+                    <el-input v-model="entryDetail.fieldsV2.UserName" placeholder="Username" aria-label="Username">
+                      <template #append>
+                        <button type="button" class="field-button" :class="{ 'is-copied': copiedField === 'UserName' }"
+                          :disabled="!entryDetail.fieldsV2.UserName" title="Copy username" aria-label="Copy username"
+                          @click="copyField('UserName')">
+                          <span class="mdi" :class="copiedField === 'UserName' ? 'mdi-check' : 'mdi-content-copy'" />
+                        </button>
+                      </template>
+                    </el-input>
                   </div>
+
                   <div class="extra-item">
-                    <label>Password</label>
-                    <el-input v-model="entryDetail.fieldsV2.Password" type="password" show-password
-                      class="vgo-u-font-code" />
+                    <label class="extra-label">Password</label>
+                    <el-input v-model="entryDetail.fieldsV2.Password" type="password" show-password class="vgo-u-font-code"
+                      placeholder="Password" aria-label="Password">
+                      <template #append>
+                        <button type="button" class="field-button" title="Generate strong password"
+                          aria-label="Generate strong password" @click="handleGeneratePassword">
+                          <span class="mdi mdi-dice-5" />
+                        </button>
+                        <button type="button" class="field-button" :class="{ 'is-copied': copiedField === 'Password' }"
+                          :disabled="!entryDetail.fieldsV2.Password" title="Copy password" aria-label="Copy password"
+                          @click="copyField('Password')">
+                          <span class="mdi" :class="copiedField === 'Password' ? 'mdi-check' : 'mdi-content-copy'" />
+                        </button>
+                      </template>
+                    </el-input>
                   </div>
-                  <div class="extra-item">
-                    <label>URL</label>
-                    <el-input v-model="entryDetail.fieldsV2.URL" placeholder="" />
+
+                  <div class="extra-item extra-item--full">
+                    <label class="extra-label">URL</label>
+                    <el-input v-model="entryDetail.fieldsV2.URL" placeholder="URL" aria-label="URL">
+                      <template #append>
+                        <button type="button" class="field-button" :disabled="!entryDetail.fieldsV2.URL"
+                          title="Visit website" aria-label="Visit website" @click="handleVisitUrl">
+                          <span class="mdi mdi-open-in-new" />
+                        </button>
+                        <button type="button" class="field-button" :class="{ 'is-copied': copiedField === 'URL' }"
+                          :disabled="!entryDetail.fieldsV2.URL" title="Copy URL" aria-label="Copy URL"
+                          @click="copyField('URL')">
+                          <span class="mdi" :class="copiedField === 'URL' ? 'mdi-check' : 'mdi-content-copy'" />
+                        </button>
+                      </template>
+                    </el-input>
                   </div>
                 </div>
 
@@ -243,9 +392,14 @@ export default defineComponent({
 
     .detail-card-wrap {
       flex: 1;
+      min-height: 0;
       overflow: auto;
-      padding-top: 10px;
-      padding-bottom: 5px;
+      box-sizing: border-box;
+      padding: 12px 16px 6px;
+
+      @media screen and (max-width: 600px) {
+        padding: 8px 8px 4px;
+      }
 
       @media screen and (max-height: 500px) {
         padding-top: 0;
@@ -253,43 +407,97 @@ export default defineComponent({
     }
 
     .detail-card {
-      margin-left: auto;
-      margin-right: auto;
-      width: 800px;
+      width: 100%;
+      max-width: 800px;
+      height: 100%;
+      margin: 0 auto;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      height: 100%;
-
-      @media screen and (max-width: 800px) {
-        width: 100%;
-        padding: 0 10px;
-        box-sizing: border-box;
-      }
-
-      @media screen and (max-width: 1200px) {
-        margin-top: 10px;
-      }
-
-      @media screen and (max-height: 500px) {
-        margin-top: 1px;
-      }
 
       .detail-infos {
         display: flex;
         flex-direction: column;
         gap: 8px;
+        min-width: 0;
 
-        .detail-info-row {
+        .detail-title-row {
           display: flex;
           align-items: center;
-          justify-content: space-between;
           gap: 8px;
+          min-width: 0;
+          min-height: var(--vgo-control-md);
+
+          .detail-title-input {
+            flex: 1 1 auto;
+            min-width: 0;
+          }
+
+          .detail-info-actions {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 2px;
+          }
 
           .vgo-entry-icon-button {
+            flex-shrink: 0;
             padding: 0;
             line-height: 0;
             cursor: pointer;
+          }
+
+          // 窄屏：图标、标题、操作按钮仍保持同一行，只收缩间距
+          @media screen and (max-width: 600px) {
+            gap: 4px;
+
+            .detail-info-actions {
+              gap: 0;
+            }
+          }
+        }
+
+        // 统一表单标签：extra-item / date-item 共用同一套样式
+        .extra-label,
+        .date-label {
+          flex: 0 0 auto;
+          width: 64px;
+          text-align: right;
+          font-size: var(--vgo-font-sm);
+          line-height: 1.3;
+          color: var(--vgo-text-secondary);
+          white-space: nowrap;
+          user-select: none;
+        }
+
+        // 创建/更新时间：与 extra-info 一致的两列「标签 + 控件」布局
+        .detail-dates {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+          min-width: 0;
+
+          .date-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+          }
+
+          :deep(.el-date-editor) {
+            flex: 1 1 auto;
+            width: auto;
+            min-width: 0;
+
+            .el-input__wrapper,
+            .el-input__inner {
+              min-width: 0;
+            }
+          }
+
+          @media screen and (max-width: 720px) {
+            grid-template-columns: minmax(0, 1fr);
           }
         }
 
@@ -309,26 +517,89 @@ export default defineComponent({
           }
         }
 
+        .detail-title-input {
+          :deep(.el-input__inner) {
+            font-size: var(--vgo-font-lg);
+            font-weight: 600;
+          }
+        }
+
+        .detail-more {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding-bottom: 4px;
+        }
+
         .extra-info {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           grid-template-rows: auto;
           gap: 8px;
-
-          @media screen and (max-width: 800px) {
-            grid-template-columns: repeat(1, 1fr);
-          }
 
           .extra-item {
             display: flex;
             align-items: center;
+            gap: 8px;
+            min-width: 0;
 
-            label {
-              margin-right: 5px;
-              min-width: 70px;
-              text-align: right;
-              font-size: 12px;
+            &--full {
+              grid-column: 1 / -1;
             }
+
+            :deep(.el-input) {
+              flex: 1 1 auto;
+              min-width: 0;
+            }
+
+            :deep(.el-input-group__append) {
+              padding: 0;
+              overflow: hidden;
+            }
+
+            .field-button {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              height: 100%;
+              min-height: 30px;
+              min-width: 26px;
+              padding: 0 4px;
+              border: 0;
+              background: transparent;
+              color: var(--vgo-text-secondary);
+              font-size: var(--vgo-icon-sm);
+              line-height: 1;
+              cursor: pointer;
+              transition: color var(--vgo-duration-fast), background-color var(--vgo-duration-fast);
+
+              &:hover:not(:disabled) {
+                color: var(--vgo-primary);
+              }
+
+              &:active:not(:disabled) {
+                background: var(--vgo-hover);
+              }
+
+              &:disabled {
+                cursor: not-allowed;
+                opacity: 0.4;
+              }
+
+              &.is-copied {
+                color: var(--vgo-success);
+              }
+
+              // 同一输入框内的多个按钮之间加一条细分隔线
+              & + & {
+                box-shadow: inset 1px 0 0 var(--vgo-border);
+              }
+            }
+          }
+
+          // 窄屏：单列堆叠，标签仍然在输入框左侧
+          @media screen and (max-width: 720px) {
+            grid-template-columns: minmax(0, 1fr);
           }
         }
       }

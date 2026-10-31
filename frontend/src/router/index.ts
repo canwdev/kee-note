@@ -38,16 +38,10 @@ const router = createRouter({
   routes: constantRoutes,
 })
 
-export const formatSiteTitle = (t?: string) => {
+export const formatSiteTitle = (t?: string, dirty = false) => {
   const title = `KeeNote v${pkg.version}`
-  if (!t) {
-    return title
-  }
-  return `${t} - ${title}`
+  const base = t ? `${t} - ${title}` : title
+  return dirty ? `• ${base}` : base
 }
-
-router.afterEach((to) => {
-  document.title = formatSiteTitle(to?.meta?.title as string)
-})
 
 export default router

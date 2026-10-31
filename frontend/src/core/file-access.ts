@@ -85,6 +85,8 @@ export interface FileLiteSdk {
   ): Promise<{path: string; name: string}>
   getLaunch(): Promise<{path?: string; filename?: string} | null>
   onOpen(callback: (file: {path: string; filename: string; directory: string} | undefined) => void): void
+  /** 设置宿主窗口标题；旧版 SDK 可能没有该方法 */
+  setTitle?(title: string): Promise<void>
 }
 
 let hooks: FileAccessHooks = {}

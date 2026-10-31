@@ -3,6 +3,7 @@ import GlobalSettings from '@/components/Settings/GlobalSettings.vue'
 import globalEventBus, {GlobalEvents} from '@/utils/bus'
 import {useKeeStore} from '@/store/kee-store'
 import {useBeforeUnload} from '@/hooks/use-changed'
+import {useSiteTitle} from '@/hooks/use-site-title'
 import dialog from '@/utils/dialog'
 import {ElMessage} from 'element-plus'
 
@@ -12,6 +13,8 @@ export default defineComponent({
   },
   setup() {
     const keeStore = useKeeStore()
+
+    useSiteTitle()
 
     window.$message = ElMessage
     window.$dialog = dialog
