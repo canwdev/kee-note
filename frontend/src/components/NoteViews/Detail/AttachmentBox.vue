@@ -1,15 +1,17 @@
 <script lang="ts">
-import {defineComponent, PropType} from 'vue'
-import {EntryItem} from '@/enum/kdbx'
-import {getAttachment, removeAttachment, renameAttachment, uploadAttachment} from '@/api/keepass'
+import { defineComponent, PropType } from 'vue'
+import { EntryItem } from '@/enum/kdbx'
+import { getAttachment, removeAttachment, renameAttachment, uploadAttachment } from '@/api/keepass'
 import AttachmentPreview from '@/components/NoteViews/Detail/AttachmentPreview.vue'
 import DialogInput from '@/components/NoteViews/Dialogs/DialogInput.vue'
+import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
 
 export default defineComponent({
   name: 'AttachmentBox',
   components: {
     DialogInput,
     AttachmentPreview,
+    MenuTrigger,
   },
   props: {
     entryDetail: {
@@ -17,8 +19,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, {emit}) {
-    const {entryDetail} = toRefs(props)
+  setup(props, { emit }) {
+    const { entryDetail } = toRefs(props)
     const isShowPreview = ref(false)
 
     const previewIndex = ref(0)
@@ -53,30 +55,24 @@ export default defineComponent({
       emit('dataUpdated')
     }
 
-    const handleMenuCommand = (item: any) => {
-      item?.props?.onClick?.()
-    }
-
     const editingFilename = ref(null)
     const getMenuOptions = (item) => {
       return [
         {
-          label: '✒️ Rename',
-          props: {
-            onClick: () => {
-              editingFilename.value = item
-              isShowRenameDialog.value = true
-            },
+          label: 'Rename',
+          icon: 'mdi-pencil-outline',
+          onClick: () => {
+            editingFilename.value = item
+            isShowRenameDialog.value = true
           },
         },
         {
-          label: '❌ Delete',
-          props: {
-            onClick: () => {
-              if (confirm('Confirm delete attached file?')) {
-                handleRemoveItem(item)
-              }
-            },
+          label: 'Delete',
+          icon: 'mdi-delete-outline',
+          onClick: () => {
+            if (confirm('Confirm delete attached file?')) {
+              handleRemoveItem(item)
+            }
           },
         },
       ]
@@ -98,7 +94,6 @@ export default defineComponent({
       handlePreviewItem,
       handleRemoveItem,
       handleAddAttachment,
-      handleMenuCommand,
       getMenuOptions,
       isShowRenameDialog,
       handleRename,
@@ -113,52 +108,30 @@ export default defineComponent({
     <div class="vgo-u-flex-wrap-center">
       <span>Attachments</span>
       <el-button-group v-for="(item, index) in entryDetail.attachmentNames" :key="item">
-        <el-button size="small" @click="handlePreviewItem(item, index)">{{ item }}</el-button>
+        <el-button @click="handlePreviewItem(item, index)">{{ item }}</el-button>
 
-        <el-dropdown trigger="click" @command="handleMenuCommand">
-          <el-button size="small" title="More">
+        <MenuTrigger :items="getMenuOptions(item)">
+          <el-button title="More">
             <el-icon><span class="mdi mdi-dots-vertical" /></el-icon>
           </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="(opt, i) in getMenuOptions(item)"
-                :key="i"
-                :command="opt"
-              >
-                {{ opt.label }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        </MenuTrigger>
       </el-button-group>
 
-      <el-button title="Add file" size="small" @click="handleAddAttachment">
+      <el-button title="Add file" @click="handleAddAttachment">
         <el-icon><span class="mdi mdi-paperclip" /></el-icon>
       </el-button>
     </div>
 
-    <AttachmentPreview
-      v-model:visible="isShowPreview"
-      :uuid="entryDetail.uuid"
-      :attachment-names="entryDetail.attachmentNames"
-      :index="previewIndex"
-      @dataUpdated="$emit('dataUpdated')"
-    />
+    <AttachmentPreview v-model:visible="isShowPreview" :uuid="entryDetail.uuid"
+      :attachment-names="entryDetail.attachmentNames" :index="previewIndex" @dataUpdated="$emit('dataUpdated')" />
 
-    <DialogInput
-      v-model:visible="isShowRenameDialog"
-      :value="editingFilename || ''"
-      dialog-title="Rename File"
-      input-label="Filename"
-      @onSubmit="handleRename"
-    />
+    <DialogInput v-model:visible="isShowRenameDialog" :value="editingFilename || ''" dialog-title="Rename File"
+      input-label="Filename" @onSubmit="handleRename" />
   </div>
 </template>
 
 <style lang="scss" scoped>
 .attachment-box {
   margin-top: 8px;
-  margin-bottom: 8px;
 }
 </style>

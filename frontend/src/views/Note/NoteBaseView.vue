@@ -1,40 +1,42 @@
 <script lang="ts">
-import {kService} from '@/api'
-import {GroupItem} from '@/enum/kdbx'
-import {defineComponent} from 'vue'
-import {useRouter} from 'vue-router'
-import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
-import {useContextMenu} from '@/hooks/use-context-menu'
+import { kService } from '@/api'
+import { GroupItem } from '@/enum/kdbx'
+import { defineComponent } from 'vue'
+import { WindowDock, WindowStack } from '@canwdev/vgo-ui'
+import globalEventBus, { GlobalEvents, saveDatabaseAsync } from '@/utils/bus'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import ListView from '@/components/NoteViews/ListView.vue'
 import CalendarView from '@/components/NoteViews/Calendar/CalendarView.vue'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import DialogIconChooser from '@/components/NoteViews/Dialogs/DialogIconChooser.vue'
-import {useMainStore} from '@/store/main'
+import { useMainStore } from '@/store/main'
 
-import {importEntryListJson} from '@/utils/export-import'
-import {useSettingsStore} from '@/store/settings'
-import {useKeeNoteGroupManage, useKeeNoteSaveClose} from '@/hooks/use-keenote'
+import { importEntryListJson } from '@/utils/export-import'
+import { useSettingsStore } from '@/store/settings'
+import { useKeeNoteGroupManage, useKeeNoteSaveClose } from '@/hooks/use-keenote'
 import DetailView from '@/views/Note/DetailView.vue'
-import {checkDatabaseIsOpen} from '@/api/keepass'
+import { checkDatabaseIsOpen } from '@/api/keepass'
 import DialogSearch from '@/components/NoteViews/DataSearch/DialogSearch.vue'
-import FoldableSidebarLayout from '@/components/CommonUI/FoldableSidebarLayout.vue'
-import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
+import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
+import {
+  closeAllDetailWindows,
+  detailWindows,
+} from '@/hooks/use-detail-windows'
 
 export default defineComponent({
   name: 'NoteLayout',
   components: {
-    FoldableSidebarLayout,
-    ContextMenu,
     IconDisplay,
     DialogSearch,
+    MenuTrigger,
+    WindowDock,
+    WindowStack,
     DetailView,
     ListView,
     CalendarView,
     DialogIconChooser,
   },
   setup() {
-    const router = useRouter()
-
     const mainStore = useMainStore()
     const settingsStore = useSettingsStore()
 
@@ -54,72 +56,69 @@ export default defineComponent({
 
       return [
         {
-          label: '🗒️ Create Note',
-          props: {
-            onClick: () => {
-              nodeAction(option, () => {
-                handleCreateEntry()
-              })
-            },
+          label: 'Create Note',
+          icon: 'mdi-note-plus-outline',
+          onClick: () => {
+            nodeAction(option, () => {
+              handleCreateEntry()
+            })
           },
         },
         {
-          label: '📁 Create Group',
-          props: {
-            onClick: () => {
-              nodeAction(option, () => {
-                handleCreateGroup()
-              })
-            },
+          label: 'Create Group',
+          icon: 'mdi-folder-plus-outline',
+          onClick: () => {
+            nodeAction(option, () => {
+              handleCreateGroup()
+            })
           },
         },
         option && {
-          label: '📝 Rename Group',
-          props: {
-            onClick: () => {
-              nodeAction(option, () => {
-                showRenameModal()
-              })
-            },
+          label: 'Rename Group',
+          icon: 'mdi-folder-edit-outline',
+          onClick: () => {
+            nodeAction(option, () => {
+              showRenameModal()
+            })
           },
         },
         option && {
-          label: '🌟 Change Icon',
-          props: {
-            onClick: () => {
-              nodeAction(option, () => {
-                isShowChooseIconModal.value = true
-              })
-            },
+          label: 'Change Icon',
+          icon: 'mdi-emoticon-outline',
+          onClick: () => {
+            nodeAction(option, () => {
+              isShowChooseIconModal.value = true
+            })
           },
         },
         {
-          label: '📥 Import JSON',
-          props: {
-            onClick: () => {
-              handleImportJson()
-            },
+          label: 'Import JSON',
+          icon: 'mdi-import',
+          onClick: () => {
+            handleImportJson()
           },
         },
         !isRootSelected && {
           label: isEmptyRecycleBin
-            ? '❌ Empty Recycle Bin'
+            ? 'Empty Recycle Bin'
             : isShiftPressed
-            ? '❌ Permanent Delete'
-            : '🚮 Move to Recycle Bin',
-          props: {
-            onClick: () => {
-              nodeAction(option, () => {
-                confirmRemoveGroup(isShiftPressed)
-              })
-            },
+              ? 'Permanent Delete'
+              : 'Move to Recycle Bin',
+          icon: isEmptyRecycleBin
+            ? 'mdi-delete-empty-outline'
+            : isShiftPressed
+              ? 'mdi-delete-forever-outline'
+              : 'mdi-trash-can-outline',
+          onClick: () => {
+            nodeAction(option, () => {
+              confirmRemoveGroup(isShiftPressed)
+            })
           },
         },
       ].filter(Boolean)
     }
 
-    const {editingNode, nodeAction, handleContextmenu, ...contextMenuEtc} =
-      useContextMenu(getMenuOptions)
+    const { editingNode, nodeAction, handleContextmenu } = useContextMenu(getMenuOptions)
 
     onMounted(() => {
       window.addEventListener('keydown', listenShortcuts)
@@ -136,7 +135,7 @@ export default defineComponent({
             handleToggleLock()
           }
         } else if (key === 's') {
-          if (!keeStore.detailUuid) {
+          if (!detailWindows.windows.length) {
             event.preventDefault()
             if (keeStore.isNotSave) {
               // TODO: 处理快速重复按键，避免重复请求
@@ -163,11 +162,10 @@ export default defineComponent({
       showRenameModal,
       isShowChooseIconModal,
       handleSelectIcon,
-      handleCloseDatabase,
       handleToggleLock,
     } = useKeeNoteGroupManage(editingNode)
 
-    const {commonSaveDatabase} = useKeeNoteSaveClose()
+    const { commonSaveDatabase } = useKeeNoteSaveClose()
 
     onActivated(async () => {
       keeStore.isDbOpened = await kService.checkDatabaseIsOpen()
@@ -180,19 +178,10 @@ export default defineComponent({
 
     const menuOptionsBase = [
       {
-        label: '⚙️ Settings',
-        props: {
-          onClick: () => {
-            globalEventBus.emit(GlobalEvents.SHOW_SETTINGS)
-          },
-        },
-      },
-      {
-        label: '🏃 Logout',
-        props: {
-          onClick: () => {
-            handleLogout()
-          },
+        label: 'Settings',
+        icon: 'mdi-cog-outline',
+        onClick: () => {
+          globalEventBus.emit(GlobalEvents.SHOW_SETTINGS)
         },
       },
     ].filter(Boolean)
@@ -200,11 +189,12 @@ export default defineComponent({
     const menuOptions = computed(() => {
       const options = [
         {
-          label: settingsStore.isCalendarView ? '📃 List View' : '📅 Calendar View',
-          props: {
-            onClick: () => {
-              settingsStore.isCalendarView = !settingsStore.isCalendarView
-            },
+          label: settingsStore.isCalendarView ? 'List View' : 'Calendar View',
+          icon: settingsStore.isCalendarView
+            ? 'mdi-format-list-bulleted'
+            : 'mdi-calendar-month-outline',
+          onClick: () => {
+            settingsStore.isCalendarView = !settingsStore.isCalendarView
           },
         },
         ...menuOptionsBase,
@@ -213,7 +203,8 @@ export default defineComponent({
         return [
           ...getMenuOptions(null),
           {
-            split: true,
+            label: '',
+            divided: 'self',
           },
           ...options,
         ]
@@ -221,30 +212,58 @@ export default defineComponent({
       return options
     })
 
+    const updateSidebarCollapsed = (sizes: number[]) => {
+      settingsStore.isSidebarCollapsed = (sizes?.[0] ?? 0) <= 0
+    }
+
+    const handleSplitterCollapse = (_index: number, _type: string, sizes: number[]) => {
+      updateSidebarCollapsed(sizes)
+    }
+
+    const handleSplitterResizeEnd = (_index: number, sizes: number[]) => {
+      updateSidebarCollapsed(sizes)
+    }
+
     const handleImportJson = async () => {
       await importEntryListJson(editingUuid.value)
     }
 
-    const handleLogout = async () => {
-      try {
-        await handleCloseDatabase()
-      } catch (e) {
-        window.$message.warning('Database close failed')
+    const detailWindowProps = () => ({
+      class: 'detail-window',
+      style: {
+        minWidth: '320px',
+        minHeight: '200px',
+        outline: 'none',
+      },
+      initWinOptions: {
+        width: 'min(960px, 90vw)',
+        height: 'min(720px, 85vh)',
+      },
+    })
+
+    const detailViewRefs = new Map<string, any>()
+
+    const setDetailViewRef = (id: string, el: any) => {
+      if (el) {
+        detailViewRefs.set(id, el)
+      } else {
+        detailViewRefs.delete(id)
       }
-      await router.replace({
-        name: 'HomeView',
-      })
     }
+
+    const handleDetailSave = (id: string) => {
+      detailViewRefs.get(id)?.handleSave?.()
+    }
+
+    onBeforeUnmount(() => {
+      closeAllDetailWindows()
+    })
 
     const isShowSearchDialog = ref(false)
 
     const treeProps = {
       children: 'children',
       label: 'title',
-    }
-
-    const handleMenuCommand = (item: any) => {
-      item?.props?.onClick?.()
     }
 
     const handleNodeClick = (data: GroupItem) => {
@@ -261,16 +280,19 @@ export default defineComponent({
       editingNode,
       isShowChooseIconModal,
       treeProps,
-      handleMenuCommand,
       handleNodeClick,
       handleTreeDrop,
       handleSelectIcon,
-      handleLogout,
       handleToggleLock,
+      detailWindows,
+      detailWindowProps,
+      setDetailViewRef,
+      handleDetailSave,
       commonSaveDatabase,
       isShowSearchDialog,
       handleContextmenu,
-      ...contextMenuEtc,
+      handleSplitterCollapse,
+      handleSplitterResizeEnd,
     }
   },
 })
@@ -283,22 +305,13 @@ export default defineComponent({
         <span class="logo-icon mdi mdi-lock"> </span>
         <span class="note-title"> KeeNote {{ keeStore.isNotSave ? '*' : '' }}</span>
 
-        <button
-          v-if="keeStore.isNotSave"
-          @click="commonSaveDatabase"
-          title="Save (ctrl+s)"
-          class="vgo-u-button-reset"
-        >
+        <button v-if="keeStore.isNotSave" @click="commonSaveDatabase" title="Save (ctrl+s)" class="vgo-u-button-reset">
           <span class="mdi mdi-content-save"></span>
         </button>
       </div>
 
       <div class="vgo-u-flex-wrap-center">
-        <button
-          class="vgo-u-button-reset"
-          :title="keeStore.isDbOpened ? 'Lock' : 'Unlock'"
-          @click="handleToggleLock"
-        >
+        <button class="vgo-u-button-reset" :title="keeStore.isDbOpened ? 'Lock' : 'Unlock'" @click="handleToggleLock">
           <span v-if="keeStore.isDbOpened" class="mdi mdi-shield-lock"></span>
           <span class="mdi mdi-key" v-else></span>
         </button>
@@ -307,42 +320,22 @@ export default defineComponent({
           <span class="mdi mdi-magnify"></span>
         </button>
 
-        <el-dropdown trigger="click" @command="handleMenuCommand">
+        <MenuTrigger :items="menuOptions">
           <button class="vgo-u-button-reset" title="Menu">
             <span class="mdi mdi-cog"></span>
           </button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="(item, index) in menuOptions"
-                :key="index"
-                :command="item"
-              >
-                {{ item.label }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        </MenuTrigger>
       </div>
     </div>
-    <FoldableSidebarLayout v-model="settingsStore.isSidebarCollapsed">
-      <template #sidebar>
+    <el-splitter class="note-splitter" @collapse="handleSplitterCollapse" @resize-end="handleSplitterResizeEnd">
+      <el-splitter-panel class="layout-sidebar-panel" size="240" min="160" collapsible>
         <div class="tree-wrap-outer">
           <div class="tree-wrap content-padding">
-            <el-tree
-              :data="groupTree"
-              node-key="uuid"
-              :props="treeProps"
-              :current-node-key="selectedKeys[0]"
-              highlight-current
-              default-expand-all
-              :expand-on-click-node="false"
-              draggable
-              @node-click="handleNodeClick"
+            <el-tree :data="groupTree" node-key="uuid" :props="treeProps" :current-node-key="selectedKeys[0]"
+              highlight-current default-expand-all :expand-on-click-node="false" draggable @node-click="handleNodeClick"
               @node-contextmenu="(event, data) => handleContextmenu(event, data)"
-              @node-drop="(dragNode, dropNode) => handleTreeDrop(dragNode.data, dropNode.data)"
-            >
-              <template #default="{data}">
+              @node-drop="(dragNode, dropNode) => handleTreeDrop(dragNode.data, dropNode.data)">
+              <template #default="{ data }">
                 <span class="tree-node">
                   <IconDisplay :icon="data.icon" :size="18" />
                   <span class="tree-node__title">{{ data.title }}</span>
@@ -351,30 +344,51 @@ export default defineComponent({
             </el-tree>
           </div>
         </div>
-      </template>
-      <template #default>
+      </el-splitter-panel>
+      <el-splitter-panel class="layout-content-panel">
         <template v-if="groupTree.length">
           <CalendarView v-if="settingsStore.isCalendarView" />
           <ListView v-else />
         </template>
-      </template>
-    </FoldableSidebarLayout>
+      </el-splitter-panel>
+    </el-splitter>
 
     <DialogIconChooser v-model:visible="isShowChooseIconModal" @onSelectIcon="handleSelectIcon" />
 
-    <ContextMenu
-      :show="showRightMenu"
-      :x="xRef"
-      :y="yRef"
-      :options="rightMenuOptions"
-      @select="handleSelect"
-      @close="handleClickOutside"
-    />
   </div>
 
-  <transition name="fade-scale">
-    <DetailView v-if="Boolean(keeStore.detailUuid)" />
-  </transition>
+  <WindowStack :manager="detailWindows" :window-props="detailWindowProps">
+    <template #title="{ win }">
+      <IconDisplay v-if="win.data.icon !== undefined" class="detail-window-title-icon" :icon="win.data.icon"
+        :bg-color="win.data.bgColor" :fg-color="win.data.fgColor" :size="20" title="Double-click to close"
+        @dblclick.stop="detailWindows.requestClose(win.id)" />
+      <span v-else class="mdi mdi-note-text-outline detail-window-title-icon" title="Double-click to close"
+        @dblclick.stop="detailWindows.requestClose(win.id)" />
+      <span class="detail-window-title-text">
+        <span v-if="win.data.dirty" class="detail-window-dirty">• </span>{{ win.title }}
+      </span>
+    </template>
+
+    <template #controls="{ win }">
+      <button class="vgo-button vgo-button--text" :class="{ 'vgo-button--primary': win.data.savePrimary }"
+        :disabled="win.data.saveDisabled" @click="handleDetailSave(win.id)">
+        <span class="mdi mdi-content-save" />
+        {{ win.data.saveLabel }}
+      </button>
+    </template>
+
+    <template #default="{ win, close }">
+      <DetailView :ref="(el) => setDetailViewRef(win.id, el)" :uuid="win.data.uuid" @close="close" />
+    </template>
+  </WindowStack>
+
+  <WindowDock :manager="detailWindows" class="detail-window-dock">
+    <template #icon>
+      <span class="dock-icon-wrap vgo-panel">
+        <span class="mdi mdi-note-text-outline" />
+      </span>
+    </template>
+  </WindowDock>
 
   <DialogSearch v-model:visible="isShowSearchDialog" />
 </template>
@@ -392,7 +406,7 @@ export default defineComponent({
     display: flex;
     justify-content: space-between;
     gap: 16px;
-    border-bottom: 1px solid $color_border;
+    border-bottom: 1px solid var(--vgo-border);
 
     .vgo-u-button-reset {
       .mdi {
@@ -405,9 +419,9 @@ export default defineComponent({
     }
 
     .logo-icon {
-      border: 2px solid $primary;
+      border: 2px solid var(--primary);
       border-radius: 50%;
-      color: $primary;
+      color: var(--primary);
       width: 24px;
       height: 24px;
       flex-shrink: 0;
@@ -425,9 +439,19 @@ export default defineComponent({
     }
   }
 
-  .foldable-sidebar-layout {
+  .note-splitter {
     flex: 1;
-    box-shadow: none;
+    min-height: 0;
+    background: var(--vgo-surface);
+  }
+
+  .layout-sidebar-panel {
+    overflow: hidden;
+    border-right: 1px solid var(--vgo-border);
+  }
+
+  .layout-content-panel {
+    overflow: hidden;
   }
 
   .tree-wrap-outer {
@@ -452,6 +476,104 @@ export default defineComponent({
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+  }
+}
+
+.detail-window-title-icon {
+  flex-shrink: 0;
+  cursor: default;
+}
+
+.detail-window-title-text {
+  overflow: hidden;
+  font-size: var(--vgo-font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-window-dirty {
+  color: var(--primary);
+}
+
+
+.dock-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--vgo-control-md);
+  height: var(--vgo-control-md);
+}
+
+.detail-window-dock {
+  position: fixed;
+  bottom: var(--vgo-space-1);
+  left: var(--vgo-space-1);
+  z-index: var(--vgo-z-sticky);
+  gap: 2px;
+
+  :deep(.vgo-window-dock__item) {
+    position: relative;
+    gap: 2px;
+    padding: 2px var(--vgo-space-1) 3px;
+    border-radius: var(--vgo-radius);
+    transition: background-color var(--vgo-duration-fast) ease;
+
+    &:hover {
+      background-color: var(--vgo-hover);
+    }
+
+    &:active {
+      background-color: var(--vgo-primary-opacity);
+    }
+  }
+
+  :deep(.vgo-window-dock__icon) {
+    font-size: var(--vgo-icon-lg);
+    line-height: 1;
+    color: var(--vgo-primary);
+  }
+
+  :deep(.vgo-window-dock__indicator) {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background-color: var(--vgo-text-secondary);
+    transition: opacity var(--vgo-duration-fast) ease;
+  }
+
+  :deep(.vgo-window-dock__item.is-active .vgo-window-dock__indicator) {
+    background-color: var(--vgo-primary);
+  }
+
+  :deep(.vgo-window-dock__item.is-minimized .vgo-window-dock__icon) {
+    opacity: 0.55;
+  }
+
+  :deep(.vgo-window-dock__item.is-minimized .vgo-window-dock__indicator) {
+    opacity: 0.35;
+  }
+
+  :deep(.vgo-window-dock__item.is-drag-source) {
+    opacity: 0.5;
+  }
+
+  :deep(.vgo-window-dock__item.is-drop-before::after),
+  :deep(.vgo-window-dock__item.is-drop-after::after) {
+    content: '';
+    position: absolute;
+    top: var(--vgo-space-1);
+    bottom: var(--vgo-space-1);
+    width: 2px;
+    background-color: var(--vgo-primary);
+    pointer-events: none;
+  }
+
+  :deep(.vgo-window-dock__item.is-drop-before::after) {
+    left: -2px;
+  }
+
+  :deep(.vgo-window-dock__item.is-drop-after::after) {
+    right: -2px;
   }
 }
 </style>

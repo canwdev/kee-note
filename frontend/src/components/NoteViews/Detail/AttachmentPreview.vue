@@ -1,14 +1,16 @@
 <script lang="ts">
-import {defineComponent} from 'vue'
-import {getAttachment, renameAttachment} from '@/api/keepass'
-import {useModelWrapper} from '@/hooks/use-model-wrapper'
+import { defineComponent } from 'vue'
+import { getAttachment, renameAttachment } from '@/api/keepass'
+import { useModelWrapper } from '@/hooks/use-model-wrapper'
 import mime from 'mime'
 import DialogInput from '@/components/NoteViews/Dialogs/DialogInput.vue'
-import {aLinkDownload} from '@/utils/export-import'
+import { aLinkDownload } from '@/utils/export-import'
+import { ModalWindow } from '@canwdev/vgo-ui'
 
 export default defineComponent({
   name: 'AttachmentPreview',
   components: {
+    ModalWindow,
     DialogInput,
   },
   props: {
@@ -31,8 +33,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, {emit}) {
-    const {attachmentNames, index, uuid} = toRefs(props)
+  setup(props, { emit }) {
+    const { attachmentNames, index, uuid } = toRefs(props)
     const mVisible = useModelWrapper(props, emit, 'visible')
 
     const imgSrc = ref<string | undefined>(undefined)
@@ -56,7 +58,7 @@ export default defineComponent({
       (val) => {
         mIndex.value = val
       },
-      {immediate: true}
+      { immediate: true }
     )
 
     const filename = computed(() => {
@@ -147,24 +149,19 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog
-    v-model="mVisible"
-    :title="filename"
-    width="800px"
-    append-to-body
-    class="attachment-preview-dialog"
-  >
+  <ModalWindow v-model:visible="mVisible" :title="filename" class="attachment-preview-dialog"
+    :init-win-options="{ width: '800px' }">
     <div class="attachment-preview">
       <div class="vgo-u-flex-wrap-center preview-actions">
         <el-button-group>
-          <el-button title="Prev" size="small" @click="goPrev">
+          <el-button title="Prev" @click="goPrev">
             <el-icon><span class="mdi mdi-chevron-left" /></el-icon>
           </el-button>
-          <el-button title="Next" size="small" @click="goNext">
+          <el-button title="Next" @click="goNext">
             <el-icon><span class="mdi mdi-chevron-right" /></el-icon>
           </el-button>
         </el-button-group>
-        <el-button title="Download" size="small" @click="handleDownload">
+        <el-button title="Download" @click="handleDownload">
           <el-icon><span class="mdi mdi-download" /></el-icon>
         </el-button>
       </div>
@@ -183,7 +180,7 @@ export default defineComponent({
         {{ `${mIndex + 1}/${attachmentNames?.length}` }}
       </div>
     </div>
-  </el-dialog>
+  </ModalWindow>
 </template>
 
 <style lang="scss" scoped>
@@ -191,6 +188,7 @@ export default defineComponent({
   height: 580px;
   display: flex;
   flex-direction: column;
+
   .image-box {
     margin-top: 10px;
     margin-bottom: 10px;
@@ -199,10 +197,12 @@ export default defineComponent({
     align-items: center;
     justify-content: center;
     overflow: hidden;
+
     img {
       max-width: 100%;
       max-height: 100%;
     }
+
     textarea {
       width: 90%;
       height: 90%;

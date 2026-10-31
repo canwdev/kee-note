@@ -228,8 +228,8 @@ export default defineComponent({
   }
 
   .cal-main {
-    border-right: 1px solid $color_border;
-    border-bottom: 1px solid $color_border;
+    border-right: 1px solid var(--vgo-border);
+    border-bottom: 1px solid var(--vgo-border);
 
     .cal-weekdays {
       display: flex;
@@ -237,8 +237,8 @@ export default defineComponent({
       .week-col {
         flex: 1;
         text-align: center;
-        border-top: 1px solid $color_border;
-        border-left: 1px solid $color_border;
+        border-top: 1px solid var(--vgo-border);
+        border-left: 1px solid var(--vgo-border);
         position: relative;
         transition: background-color 0.5s;
         overflow: hidden;
@@ -272,7 +272,7 @@ export default defineComponent({
         }
 
         &.day-weekend {
-          color: $primary_alt;
+          color: var(--primary-alt);
         }
 
         &:hover {
@@ -281,7 +281,7 @@ export default defineComponent({
         }
 
         &.active {
-          background-color: $primary_opacity !important;
+          background-color: var(--primary-opacity) !important;
           transition: background-color 0.5s !important;
         }
       }
@@ -296,7 +296,7 @@ export default defineComponent({
           left: 0;
           right: 0;
           height: 3px;
-          background: $primary;
+          background: var(--primary);
         }
       }
 

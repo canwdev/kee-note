@@ -1,4 +1,5 @@
 import {useContextMenu} from '@/hooks/use-context-menu'
+import {openDetailWindow} from '@/hooks/use-detail-windows'
 import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
 import {kService} from '@/api'
 import {useRoute, useRouter} from 'vue-router'
@@ -53,7 +54,7 @@ export const useCommonActions = (options) => {
       })
       await saveDatabaseAsync()
 
-      keeStore.detailUuid = entry.uuid
+      openDetailWindow(entry.uuid, entry.title)
       globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
     }
 
@@ -61,17 +62,16 @@ export const useCommonActions = (options) => {
     if (item && item.day) {
       return [
         {
-          label: '🗒️ Create Note',
-          props: {
-            onClick: async () => {
-              let d: Date
-              if (item.day.isSame(moment(), 'day')) {
-                d = new Date()
-              } else {
-                d = item.day.toDate()
-              }
-              await handleCreateEntry(d)
-            },
+          label: 'Create Note',
+          icon: 'mdi-note-plus-outline',
+          onClick: async () => {
+            let d: Date
+            if (item.day.isSame(moment(), 'day')) {
+              d = new Date()
+            } else {
+              d = item.day.toDate()
+            }
+            await handleCreateEntry(d)
           },
         },
       ]
@@ -79,63 +79,56 @@ export const useCommonActions = (options) => {
 
     return [
       !isMultiple && {
-        label: '🔰 Preview',
-        props: {
-          onClick: () => {
-            nodeAction(item, () => {
-              isShowPreviewModal.value = true
-            })
-          },
+        label: 'Preview',
+        icon: 'mdi-eye-outline',
+        onClick: () => {
+          nodeAction(item, () => {
+            isShowPreviewModal.value = true
+          })
         },
       },
       !isMultiple && {
-        label: '✒️ Edit',
-        props: {
-          onClick: () => {
-            keeStore.detailUuid = item.uuid
-          },
+        label: 'Edit',
+        icon: 'mdi-pencil-outline',
+        onClick: () => {
+          openDetailWindow(item.uuid, item.title)
         },
       },
       isMultiple && {
-        label: '📃 Export JSON (no attachments)',
-        props: {
-          onClick: () => {
-            handleExportJson()
-          },
+        label: 'Export JSON (no attachments)',
+        icon: 'mdi-file-export-outline',
+        onClick: () => {
+          handleExportJson()
         },
       },
       {
-        label: '📁 Move to group...',
-        props: {
-          onClick: () => {
-            nodeAction(item, () => {
-              isShowGroupSelectModal.value = true
-            })
-          },
+        label: 'Move to group...',
+        icon: 'mdi-folder-move-outline',
+        onClick: () => {
+          nodeAction(item, () => {
+            isShowGroupSelectModal.value = true
+          })
         },
       },
       isInRecycleBin
         ? {
-            label: '❌ Permanent Delete',
-            props: {
-              onClick: () => {
-                confirmRemoveEntry(item, true)
-              },
+            label: 'Permanent Delete',
+            icon: 'mdi-delete-forever-outline',
+            onClick: () => {
+              confirmRemoveEntry(item, true)
             },
           }
         : {
-            label: '🚮 Move to Recycle Bin',
-            props: {
-              onClick: () => {
-                confirmRemoveEntry(item, false)
-              },
+            label: 'Move to Recycle Bin',
+            icon: 'mdi-trash-can-outline',
+            onClick: () => {
+              confirmRemoveEntry(item, false)
             },
           },
     ].filter(Boolean)
   }
 
-  const {editingNode, nodeAction, handleContextmenu, ...contextMenuEtc} =
-    useContextMenu(getMenuOptions)
+  const {editingNode, nodeAction, handleContextmenu} = useContextMenu(getMenuOptions)
 
   const confirmRemoveEntry = (item, isDelete = false) => {
     const isMultiple = Boolean(checkedRowKeys.value.length)
@@ -177,6 +170,5 @@ export const useCommonActions = (options) => {
     isShowPreviewModal,
     handleSelectGroup,
     getMenuOptions,
-    ...contextMenuEtc,
   }
 }

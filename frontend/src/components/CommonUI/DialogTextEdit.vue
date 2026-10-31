@@ -1,9 +1,13 @@
 <script lang="ts">
 import {defineComponent, ref} from 'vue'
+import {ModalWindow} from '@canwdev/vgo-ui'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 
 export default defineComponent({
   name: 'DialogTextEdit',
+  components: {
+    ModalWindow,
+  },
   props: {
     visible: {
       type: Boolean,
@@ -72,14 +76,11 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog
-    draggable
-    width="700"
-    top="10vh"
+  <ModalWindow
+    v-model:visible="mVisible"
     :title="title"
-    @positive-click="handleSave"
-    v-model="mVisible"
-    :close-on-click-modal="false"
+    :mask-closable="false"
+    :init-win-options="{width: '700px'}"
   >
     <template v-if="mVisible">
       <!--<VueMonaco-->
@@ -101,11 +102,9 @@ export default defineComponent({
       ></el-input>
     </template>
 
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="mVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="handleSave()"> Save </el-button>
-      </div>
-    </template>
-  </el-dialog>
+    <div class="dialog-footer">
+      <button class="vgo-button" @click="mVisible = false">Cancel</button>
+      <button class="vgo-button vgo-button--primary" @click="handleSave()">Save</button>
+    </div>
+  </ModalWindow>
 </template>

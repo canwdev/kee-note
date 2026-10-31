@@ -5,10 +5,12 @@ import {EntryItem} from '@/enum/kdbx'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import {Palette} from '@/enum'
 import DialogIconChooser from '@/components/NoteViews/Dialogs/DialogIconChooser.vue'
+import {ModalWindow} from '@canwdev/vgo-ui'
 
 export default defineComponent({
   name: 'DialogEntryIconColor',
   components: {
+    ModalWindow,
     IconDisplay,
     DialogIconChooser,
   },
@@ -44,7 +46,11 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog v-model="mVisible" title="Edit Icon & Color" width="440px" append-to-body>
+  <ModalWindow
+    v-model:visible="mVisible"
+    title="Edit Icon & Color"
+    :init-win-options="{width: '440px'}"
+  >
     <div v-if="entryDetail" class="icon-color-list">
       <div class="icon-color-row">
         <span>Icon</span>
@@ -75,7 +81,7 @@ export default defineComponent({
     </div>
 
     <DialogIconChooser v-model:visible="isShowIconChooser" @onSelectIcon="handleSelectIcon" />
-  </el-dialog>
+  </ModalWindow>
 </template>
 
 <style lang="scss" scoped>

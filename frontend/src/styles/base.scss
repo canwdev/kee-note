@@ -16,6 +16,14 @@ body {
 
 
 :root {
+  --primary: var(--vgo-primary);
+  --primary-rgb: var(--vgo-primary-rgb);
+  --primary-opacity: var(--vgo-primary-opacity);
+  --primary-alt: var(--vgo-danger);
+  --color-hover: var(--vgo-hover);
+  --color-dark: #58595a;
+  --bg-color: var(--vgo-surface);
+
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 24px;
@@ -32,12 +40,19 @@ body {
 
 a {
   font-weight: 500;
-  color: $primary;
+  color: var(--primary);
   text-decoration: inherit;
 }
 
 a:hover {
-  color: $primary;
+  color: var(--primary);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--vgo-space-2);
+  margin-top: var(--vgo-space-3);
 }
 
 

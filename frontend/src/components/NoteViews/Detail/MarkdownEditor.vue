@@ -1,12 +1,13 @@
 <script lang="ts">
-import {defineComponent} from 'vue'
+import { defineComponent } from 'vue'
+import { ModalWindow } from '@canwdev/vgo-ui'
 import * as HyperMD from 'hypermd'
 // 语法高亮
 import 'codemirror/mode/htmlmixed/htmlmixed' // Markdown 内嵌HTML
 import 'codemirror/mode/stex/stex' // TeX 数学公式
 import 'codemirror/mode/yaml/yaml'
 
-import {useModelWrapper} from '@/hooks/use-model-wrapper'
+import { useModelWrapper } from '@/hooks/use-model-wrapper'
 import {
   useLocalStorageBoolean,
   useLocalStorageNumber,
@@ -29,8 +30,8 @@ import 'codemirror/theme/base16-light.css'
 import 'codemirror/theme/duotone-light.css'
 import 'codemirror/theme/lucario.css'
 import 'codemirror/theme/zenburn.css'
-import {useMainStore} from '@/store/main'
-import {useEditorSettingsStore} from '@/store/editor'
+import { useMainStore } from '@/store/main'
+import { useEditorSettingsStore } from '@/store/editor'
 
 const cmThemeList = [
   'keenote-light',
@@ -58,13 +59,16 @@ let editorInstance: any = null
 
 export default defineComponent({
   name: 'MarkdownEditor',
+  components: {
+    ModalWindow,
+  },
   props: {
     modelValue: {
       type: String,
       default: '',
     },
   },
-  setup(props, {emit}) {
+  setup(props, { emit }) {
     const mainStore = useMainStore()
     const mValue = useModelWrapper(props, emit)
     const textareaRef = ref()
@@ -169,7 +173,7 @@ export default defineComponent({
 
     onMounted(() => {
       initHyperMD()
-      document.addEventListener('wheel', handleCtrlScroll, {passive: false})
+      document.addEventListener('wheel', handleCtrlScroll, { passive: false })
     })
     onBeforeUnmount(() => {
       document.removeEventListener('wheel', handleCtrlScroll)
@@ -183,7 +187,7 @@ export default defineComponent({
       isShowEditorSettings,
       editorSettingsStore,
       editorThemeOptions: [
-        {label: 'Auto (Follow System)', value: ''},
+        { label: 'Auto (Follow System)', value: '' },
         ...cmThemeList.map((i) => ({
           label: i,
           value: i,
@@ -198,24 +202,16 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="markdown-editor" :class="{_dark: mainStore.isAppDarkMode}">
+  <div class="markdown-editor" :class="{ _dark: mainStore.isAppDarkMode }">
     <textarea ref="textareaRef"></textarea>
 
-    <el-dialog
-      v-model="isShowEditorSettings"
-      title="HyperMD Editor Settings"
-      width="520px"
-      append-to-body
-    >
+    <ModalWindow v-model:visible="isShowEditorSettings" title="HyperMD Editor Settings"
+      :init-win-options="{ width: '520px' }">
       <div class="editor-settings">
         <div class="editor-settings__row">
           <span>Font Size</span>
           <div class="vgo-u-flex-wrap-center">
-            <el-input-number
-              v-model="editorSettingsStore.editorFontSize"
-              style="width: 120px"
-              :controls="false"
-            />
+            <el-input-number v-model="editorSettingsStore.editorFontSize" style="width: 120px" :controls="false" />
             <span>px</span>
           </div>
         </div>
@@ -225,24 +221,13 @@ export default defineComponent({
         </div>
         <div class="editor-settings__row">
           <span>Font Family</span>
-          <el-input
-            v-model="editorSettingsStore.editorFontFamily"
-            style="width: 260px"
-            placeholder="CSS font-family value"
-          />
+          <el-input v-model="editorSettingsStore.editorFontFamily" style="width: 260px"
+            placeholder="CSS font-family value" />
         </div>
         <div class="editor-settings__row">
           <span>Editor Theme</span>
-          <el-select
-            v-model="editorSettingsStore.editorTheme"
-            style="width: 260px"
-          >
-            <el-option
-              v-for="item in editorThemeOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
+          <el-select v-model="editorSettingsStore.editorTheme" style="width: 260px">
+            <el-option v-for="item in editorThemeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </div>
         <div class="editor-settings__row">
@@ -253,20 +238,22 @@ export default defineComponent({
           <el-button @click="$emit('turnOff')">Turn Off</el-button>
         </div>
       </div>
-    </el-dialog>
+    </ModalWindow>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .markdown-editor {
   overflow: auto;
-  height: calc(100vh - 160px);
+  flex: 1;
   min-height: 50px;
   border-radius: 4px;
   border: 1px solid rgb(224, 224, 230);
+
   @media screen and (max-height: 500px) {
     height: calc(100vh - 30px);
   }
+
   &._dark {
     border-color: transparent;
   }

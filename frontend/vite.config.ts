@@ -22,13 +22,6 @@ export default defineConfig({
   optimizeDeps: {
     include: ['kdbxweb'],
   },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        additionalData: `@import "@/styles/_variables.scss";`,
-      },
-    },
-  },
   plugins: [
     vueJsx(),
     vue({

@@ -12,7 +12,7 @@ import {useCnHoliday} from '@/components/NoteViews/Calendar/use-holiday'
 import {pad2Num} from '@/utils'
 import HolidayDisplay from '@/components/NoteViews/Calendar/HolidayDisplay.vue'
 import DataVisualization from '@/components/NoteViews/DataVisualization/index.vue'
-import ContextMenu from '@/components/CommonUI/ContextMenu.vue'
+import {openDetailWindow} from '@/hooks/use-detail-windows'
 import moment from 'moment/moment'
 
 export default defineComponent({
@@ -23,7 +23,6 @@ export default defineComponent({
     LunarDay,
     MiniList,
     CalendarLite,
-    ContextMenu,
     DialogGroupSelect,
     DialogEntryPreview,
   },
@@ -63,9 +62,7 @@ export default defineComponent({
     }
 
     const handlePreview = (item) => {
-      nodeAction(item, () => {
-        isShowPreviewModal.value = true
-      })
+      openDetailWindow(item.uuid, item.title)
     }
     const handleItemContextMenu = (event: MouseEvent, item?) => {
       handleContextmenu(event, item)
@@ -79,7 +76,6 @@ export default defineComponent({
       isShowPreviewModal,
       handleSelectGroup,
       getMenuOptions,
-      ...contextMenuEtc
     } = useCommonActions({getEntryList})
 
     const {currentYearHolidayMap} = useCnHoliday(calendarMm)
@@ -141,7 +137,6 @@ export default defineComponent({
       isShowPreviewModal,
       handleSelectGroup,
       getMenuOptions,
-      ...contextMenuEtc,
       groupUuid,
       calendarData,
       handleCalendarDateChange,
@@ -196,15 +191,6 @@ export default defineComponent({
       :show="isShowDataVisualization"
       @onBack="isShowDataVisualization = false"
       @onSeriesClick="handleSeriesClick"
-    />
-
-    <ContextMenu
-      :show="showRightMenu"
-      :x="xRef"
-      :y="yRef"
-      :options="rightMenuOptions"
-      @select="handleSelect"
-      @close="handleClickOutside"
     />
 
     <DialogGroupSelect

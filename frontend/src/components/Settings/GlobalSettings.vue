@@ -2,7 +2,7 @@
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import {useSettingsStore} from '@/store/settings'
 import {ldThemeOptions} from '@/enum/settings'
-import {OptionUI, VgoOptionType} from '@canwdev/vgo-ui'
+import {ModalWindow, OptionUI, VgoOptionType} from '@canwdev/vgo-ui'
 import type {VgoOptionItem} from '@canwdev/vgo-ui'
 import moment from 'moment/moment'
 import {useKdbxOptions} from '@/components/Settings/use-kdbx-options'
@@ -117,9 +117,14 @@ const optionList = computed((): VgoOptionItem[] => {
 </script>
 
 <template>
-  <el-dialog class="global-settings" v-model="mVisible" top="4vh" title="Settings">
+  <ModalWindow
+    v-model:visible="mVisible"
+    class="global-settings"
+    title="Settings"
+    :init-win-options="{width: '500px'}"
+  >
     <OptionUI :option-list="optionList" />
-  </el-dialog>
+  </ModalWindow>
 </template>
 
 <style lang="scss">

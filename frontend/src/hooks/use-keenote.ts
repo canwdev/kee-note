@@ -7,6 +7,7 @@ import {HistoryListItem} from '@/enum/settings'
 import {useSettingsStore} from '@/store/settings'
 import {hasDatabaseFileHandle} from '@/utils/backend'
 import {showInputPrompt} from '@/components/CommonUI/input-prompt'
+import {openDetailWindow} from '@/hooks/use-detail-windows'
 import {formatDate} from '@/utils'
 import {ElMessageBox} from 'element-plus'
 
@@ -152,7 +153,7 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
     })
     await saveDatabaseAsync()
 
-    keeStore.detailUuid = entry.uuid
+    openDetailWindow(entry.uuid, entry.title)
     globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
   }
 
@@ -394,7 +395,6 @@ export const useKeeNoteSaveClose = () => {
       await kService.closeDatabase()
       settingsStore.lastOpenedHistoryItem = null
       keeStore.isDbOpened = false
-      keeStore.detailUuid = null
       keeStore.dbInfo = null
       keeStore.isChanged = false
       keeStore.isNotSave = false

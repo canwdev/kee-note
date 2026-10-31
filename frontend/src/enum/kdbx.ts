@@ -17,6 +17,7 @@ export interface EntryItem {
   uuid: string
   icon: number
   title: string
+  groupName?: string
   bgColor: string
   fgColor: string
   creationTime: Date

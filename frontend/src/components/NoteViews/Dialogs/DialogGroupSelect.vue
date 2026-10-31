@@ -3,9 +3,13 @@ import {ref} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import {GroupItem} from '@/enum/kdbx'
 import {kService} from '@/api'
+import {ModalWindow} from '@canwdev/vgo-ui'
 
 export default defineComponent({
   name: 'DialogGroupSelect',
+  components: {
+    ModalWindow,
+  },
   props: {
     visible: {
       type: Boolean,
@@ -67,7 +71,11 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog v-model="mVisible" title="Select Group" width="440px" append-to-body>
+  <ModalWindow
+    v-model:visible="mVisible"
+    title="Select Group"
+    :init-win-options="{width: '440px'}"
+  >
     <div class="group-select-tree">
       <el-tree
         :data="groupTree"
@@ -80,13 +88,11 @@ export default defineComponent({
         @node-click="handleNodeClick"
       />
     </div>
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="mVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="handleOK">OK</el-button>
-      </div>
-    </template>
-  </el-dialog>
+    <div class="dialog-footer">
+      <button class="vgo-button" @click="mVisible = false">Cancel</button>
+      <button class="vgo-button vgo-button--primary" @click="handleOK">OK</button>
+    </div>
+  </ModalWindow>
 </template>
 
 <style lang="scss" scoped>

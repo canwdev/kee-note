@@ -1,19 +1,19 @@
 <script lang="ts">
-import {defineComponent, PropType} from 'vue'
+import { defineComponent, PropType } from 'vue'
 import AnnualHeatMap from '@/components/NoteViews/DataVisualization/AnnualHeatMap.vue'
-import {CalendarData, useKeeNoteEntryList} from '@/hooks/use-keenote'
+import { CalendarData, useKeeNoteEntryList } from '@/hooks/use-keenote'
 import moment from 'moment'
 
 export default defineComponent({
   name: 'DataVisualization',
-  components: {AnnualHeatMap},
+  components: { AnnualHeatMap },
   props: {
-    show: {type: Boolean, default: true},
+    show: { type: Boolean, default: true },
   },
-  setup(props, {emit}) {
-    const {show} = toRefs(props)
+  setup(props, { emit }) {
+    const { show } = toRefs(props)
 
-    const {calendarData, getEntryList} = useKeeNoteEntryList({
+    const { calendarData, getEntryList } = useKeeNoteEntryList({
       isCalendar: true,
     })
 
@@ -29,7 +29,7 @@ export default defineComponent({
           })
         }
       },
-      {immediate: true}
+      { immediate: true }
     )
 
     return {
@@ -50,13 +50,10 @@ export default defineComponent({
         </el-button>
         <span class="nav-title">Data Visualization</span>
       </div>
-      <el-button text size="small" @click="getEntryList">Refresh</el-button>
+      <el-button text @click="getEntryList">Refresh</el-button>
     </div>
     <div v-if="isRenderContent" class="visualization-content">
-      <AnnualHeatMap
-        :calendar-data="calendarData"
-        @onSeriesClick="(data) => $emit('onSeriesClick', data)"
-      />
+      <AnnualHeatMap :calendar-data="calendarData" @onSeriesClick="(data) => $emit('onSeriesClick', data)" />
     </div>
   </div>
 </template>
@@ -69,6 +66,7 @@ export default defineComponent({
   padding: 0 16px;
   position: relative;
   box-sizing: border-box;
+
   .nav-header {
     position: sticky;
     top: 0;
@@ -85,6 +83,7 @@ export default defineComponent({
       font-weight: 600;
     }
   }
+
   .visualization-content {
     margin-top: 16px;
     width: 100%;

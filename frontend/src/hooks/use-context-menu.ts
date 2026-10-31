@@ -1,47 +1,32 @@
-export type ContextMenuItem = {
-  label: string
-  split?: boolean
-  disabled?: boolean
-  props?: {
-    onClick?: () => void
-    [key: string]: any
-  }
-}
+import {ContextMenu} from '@canwdev/vgo-ui'
+import type {MenuItem} from '@canwdev/vgo-ui'
+
+export type ContextMenuItem = MenuItem
 
 export const useContextMenu = (getOptions) => {
-  const rightMenuOptions = ref<ContextMenuItem[]>([])
-  const showRightMenu = ref(false)
-  const xRef = ref(0)
-  const yRef = ref(0)
-
   const editingNode = ref<any | null>(null)
+
   const nodeAction = (node: any | null, cb) => {
-    // console.log(node)
     editingNode.value = node
     cb()
+  }
+
+  const handleContextmenu = (event: MouseEvent, option: any): void => {
+    event.preventDefault()
+
+    const items = (getOptions(option, event) as ContextMenuItem[]).filter(Boolean)
+
+    ContextMenu.showContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      items,
+      iconFontClass: 'mdi',
+    })
   }
 
   return {
     editingNode,
     nodeAction,
-    rightMenuOptions,
-    showRightMenu,
-    xRef,
-    yRef,
-    handleSelect: (option?: ContextMenuItem) => {
-      showRightMenu.value = false
-      option?.props?.onClick?.()
-    },
-    handleClickOutside: () => {
-      showRightMenu.value = false
-      nodeAction(null, () => {})
-    },
-    handleContextmenu(event: MouseEvent, option: any): void {
-      rightMenuOptions.value = getOptions(option, event)
-      showRightMenu.value = true
-      xRef.value = event.clientX
-      yRef.value = event.clientY
-      event.preventDefault()
-    },
+    handleContextmenu,
   }
 }

@@ -8,6 +8,7 @@
 import * as kdbxweb from 'kdbxweb'
 import type {Kdbx, KdbxEntry, KdbxGroup} from 'kdbxweb'
 import type {EntryItem, GroupItem} from '@/enum/kdbx'
+import './argon2'
 import {
   isFileSystemAccessSupported,
   onExternalFileOpen,
@@ -32,78 +33,6 @@ export type {
   PickFileOptions,
   PickSaveOptions,
 } from './file-access'
-
-/* -------------------------------------------------------------------------- */
-/*                                   argon2                                   */
-/* -------------------------------------------------------------------------- */
-
-type Argon2Module = {
-  _argon2_hash: (...args: number[]) => number
-  allocate: (data: any, type: string, mode: number) => number
-  ALLOC_NORMAL: number
-  HEAP8: Int8Array
-  _free: (ptr: number) => void
-}
-
-function getArgon2Module(): Argon2Module {
-  const mod = (window as any).Module as Argon2Module | undefined
-  if (!mod || typeof mod._argon2_hash !== 'function') {
-    throw new Error('argon2 module is not loaded (public/argon2-asm.js)')
-  }
-  return mod
-}
-
-function argon2(
-  password: ArrayBuffer,
-  salt: ArrayBuffer,
-  memory: number,
-  iterations: number,
-  length: number,
-  parallelism: number,
-  type: any,
-  version: any,
-): Promise<ArrayBuffer> {
-  const Module = getArgon2Module()
-  const passwordLen = password.byteLength
-  const saltLen = salt.byteLength
-  const passwordPtr = Module.allocate(new Uint8Array(password), 'i8', Module.ALLOC_NORMAL)
-  const saltPtr = Module.allocate(new Uint8Array(salt), 'i8', Module.ALLOC_NORMAL)
-  const hashPtr = Module.allocate(new Array(length), 'i8', Module.ALLOC_NORMAL)
-  const encodedLen = 512
-  const encodedPtr = Module.allocate(new Array(encodedLen), 'i8', Module.ALLOC_NORMAL)
-  try {
-    const res = Module._argon2_hash(
-      iterations,
-      memory,
-      parallelism,
-      passwordPtr,
-      passwordLen,
-      saltPtr,
-      saltLen,
-      hashPtr,
-      length,
-      encodedPtr,
-      encodedLen,
-      type,
-      version,
-    )
-    if (res) {
-      return Promise.reject(new Error(`Argon2 error: ${res}`))
-    }
-    const hashArr = new Uint8Array(length)
-    for (let i = 0; i < length; i++) {
-      hashArr[i] = Module.HEAP8[hashPtr + i]
-    }
-    return Promise.resolve(hashArr.buffer)
-  } finally {
-    Module._free(passwordPtr)
-    Module._free(saltPtr)
-    Module._free(hashPtr)
-    Module._free(encodedPtr)
-  }
-}
-
-kdbxweb.CryptoEngine.setArgon2Impl(argon2 as any)
 
 /* -------------------------------------------------------------------------- */
 /*                                 file access                                */
@@ -227,6 +156,7 @@ function toEntryItem(entry: KdbxEntry, isDetailed = false): EntryItem {
     uuid: entry.uuid.id,
     icon: entry.icon as number,
     title: getMapValue(entry.fields, 'Title') || '',
+    groupName: entry.parentGroup?.name || '',
     bgColor: entry.bgColor as string,
     fgColor: entry.fgColor as string,
     creationTime: entry.times.creationTime || new Date(),

@@ -2,9 +2,13 @@
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import type {FormInstance, FormRules} from 'element-plus'
 import {ref} from 'vue'
+import {ModalWindow} from '@canwdev/vgo-ui'
 
 export default defineComponent({
   name: 'DialogInput',
+  components: {
+    ModalWindow,
+  },
   props: {
     visible: {
       type: Boolean,
@@ -86,7 +90,11 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog v-model="mVisible" :title="dialogTitle" width="440px" append-to-body>
+  <ModalWindow
+    v-model:visible="mVisible"
+    :title="dialogTitle"
+    :init-win-options="{width: '440px'}"
+  >
     <el-form ref="formRef" :model="modelRef" :rules="rules" @submit.prevent>
       <el-form-item prop="name" :label="inputLabel">
         <el-input
@@ -99,11 +107,9 @@ export default defineComponent({
       </el-form-item>
     </el-form>
 
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="mVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="handleOK">OK</el-button>
-      </div>
-    </template>
-  </el-dialog>
+    <div class="dialog-footer">
+      <button class="vgo-button" @click="mVisible = false">Cancel</button>
+      <button class="vgo-button vgo-button--primary" @click="handleOK">OK</button>
+    </div>
+  </ModalWindow>
 </template>

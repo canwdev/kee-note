@@ -317,5 +317,5 @@ onMounted(async () => {
 </template>
 
 <style lang="scss">
-@import './login';
+@use './login';
 </style>

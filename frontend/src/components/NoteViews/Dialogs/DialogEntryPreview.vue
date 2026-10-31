@@ -11,12 +11,14 @@ import {useMainStore} from '@/store/main'
 import '@/styles/markdown/github-markdown-dark.css'
 import '@/styles/markdown/github-markdown.css'
 import mime from 'mime'
+import {ModalWindow} from '@canwdev/vgo-ui'
 
 marked.use(markedKatex({output: 'mathml'}))
 
 export default defineComponent({
   name: 'DialogEntryPreview',
   components: {
+    ModalWindow,
     IconDisplay,
   },
   props: {
@@ -122,14 +124,12 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog
+  <ModalWindow
+    v-model:visible="mVisible"
     class="dialog-entry-preview"
-    v-model="mVisible"
-    :title="entryDetail && entryDetail.title"
-    width="600px"
-    append-to-body
+    :init-win-options="{width: '600px'}"
   >
-    <template #header>
+    <template #title>
       <div class="vgo-u-flex-wrap-center">
         <IconDisplay
           v-if="entryDetail"
@@ -152,7 +152,7 @@ export default defineComponent({
         v-html="htmlContent"
       />
     </template>
-  </el-dialog>
+  </ModalWindow>
 </template>
 
 <style lang="scss">

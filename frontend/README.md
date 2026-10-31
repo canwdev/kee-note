@@ -45,7 +45,7 @@ requires a secure context.
 - File access is isolated in `src/utils/backend/file-access.ts`. It prefers
   `window.fileLiteSDK`, falls back to File System Access API, and exposes
   `setFileAccessHooks()` for tests or alternative hosts (pick/read/write hooks).
-- KDBX4 Argon2 is provided by the bundled asm.js module
-  [`public/argon2-asm.js`](./public/argon2-asm.js), loaded as a classic script.
+- KDBX4 Argon2 is provided by `hash-wasm` and runs in a Web Worker
+  (`src/utils/backend/argon2.ts` + `argon2-worker.ts`).
 - The file handle only lives for the current page session. After a reload you
   need to pick the `.kdbx` file again (the password prompt is unchanged).

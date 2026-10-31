@@ -14,19 +14,34 @@ import { useEditorSettingsStore } from '@/store/editor'
 import { useKeeStore } from '@/store/kee-store'
 import { useSettingsStore } from '@/store/settings'
 import { useKeeNoteSaveClose } from '@/hooks/use-keenote'
+import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
+import {
+  setDetailWindowDirty,
+  updateDetailWindowInfo,
+  updateDetailWindowSaveState,
+} from '@/hooks/use-detail-windows'
 
 export default defineComponent({
   name: 'DetailView',
   components: {
+    MenuTrigger,
     MarkdownEditor,
     DialogEntryIconColor,
     IconDisplay,
     DialogEntryPreview,
     AttachmentBox,
   },
-  setup() {
+  props: {
+    uuid: {
+      type: String,
+      required: true,
+    },
+  },
+  emits: ['close'],
+  setup(props, { emit }) {
     const entryDetail = ref<EntryItem | null>(null)
     const entryDetailTimes = reactive([0, 0])
+    const isChanged = ref(false)
 
     const keeStore = useKeeStore()
     const settingsStore = useSettingsStore()
@@ -36,7 +51,7 @@ export default defineComponent({
     const { commonSaveDatabase } = useKeeNoteSaveClose()
 
     onMounted(() => {
-      getEntryDetail(true)
+      getEntryDetail()
       window.addEventListener('keydown', listenShortcuts)
     })
     onBeforeUnmount(() => {
@@ -66,17 +81,35 @@ export default defineComponent({
       }
     }
 
-    const getEntryDetail = async (isFocus = false) => {
-      entryDetail.value = await kService.getEntryDetail({ uuid: keeStore.detailUuid })
-      nextTick(() => {
-        keeStore.isChanged = false
-        if (isFocus) {
-          titleInputRef.value?.focus()
-        }
+    const markChanged = (changed = true) => {
+      isChanged.value = changed
+      setDetailWindowDirty(props.uuid, changed)
+    }
+
+    const updateWindowInfo = () => {
+      const detail = entryDetail.value
+      if (!detail) {
+        return
+      }
+
+      const title = detail.title || 'Note'
+      updateDetailWindowInfo(props.uuid, {
+        title: detail.groupName ? `${detail.groupName}/${title}` : title,
+        icon: detail.icon,
+        bgColor: detail.bgColor,
+        fgColor: detail.fgColor,
       })
     }
 
-    useBeforeUnload(() => keeStore.isChanged)
+    const getEntryDetail = async () => {
+      entryDetail.value = await kService.getEntryDetail({ uuid: props.uuid })
+      updateWindowInfo()
+      nextTick(() => {
+        markChanged(false)
+      })
+    }
+
+    useBeforeUnload(() => isChanged.value)
 
     watch(entryDetail, (val) => {
       if (!val) {
@@ -90,7 +123,8 @@ export default defineComponent({
     watch(
       entryDetail,
       () => {
-        keeStore.isChanged = true
+        markChanged(true)
+        updateWindowInfo()
       },
       { deep: true },
     )
@@ -99,7 +133,7 @@ export default defineComponent({
       if (!entryDetail.value) {
         return
       }
-      if (keeStore.isChanged) {
+      if (isChanged.value) {
         entryDetail.value.creationTime = new Date(entryDetailTimes[0])
 
         const params = getEntryItemUpdateParams({
@@ -121,9 +155,9 @@ export default defineComponent({
 
     // 处理不同保存条件下的按钮样式
     const saveBtnInfo = computed((): any => {
-      if (settingsStore.enableAutoSave || keeStore.isChanged) {
+      if (settingsStore.enableAutoSave || isChanged.value) {
         return {
-          disabled: !keeStore.isChanged,
+          disabled: !isChanged.value,
           label: settingsStore.enableAutoSave ? 'Save' : 'Done',
         }
       }
@@ -141,6 +175,18 @@ export default defineComponent({
       }
     })
 
+    watch(
+      saveBtnInfo,
+      (info) => {
+        updateDetailWindowSaveState(props.uuid, {
+          disabled: Boolean(info.disabled),
+          label: info.label || 'Save',
+          primary: info.type === 'primary',
+        })
+      },
+      { immediate: true, deep: true },
+    )
+
     const isBackRefresh = ref(false)
     const syncAndSave = async () => {
       await getEntryDetail()
@@ -155,70 +201,51 @@ export default defineComponent({
     const menuOptions = computed((): any[] => {
       return [
         {
-          label: '🔰 Preview (Ctrl+/)',
-          props: {
-            onClick: async () => {
-              isShowPreviewModal.value = true
-            },
+          label: 'Preview (Ctrl+/)',
+          icon: 'mdi-eye-outline',
+          onClick: async () => {
+            isShowPreviewModal.value = true
           },
         },
         {
-          label: '🦆 Edit Icon & Color',
-          props: {
-            onClick: async () => {
-              isShowIconEdit.value = true
-            },
+          label: 'Edit Icon & Color',
+          icon: 'mdi-palette-outline',
+          onClick: async () => {
+            isShowIconEdit.value = true
           },
         },
         !editorSettingsStore.isAdvancedEditor && {
-          label: '💫 Enable HyperMD Editor',
-          props: {
-            onClick: async () => {
-              editorSettingsStore.isAdvancedEditor = true
-            },
+          label: 'Enable HyperMD Editor',
+          icon: 'mdi-text-box-edit-outline',
+          onClick: async () => {
+            editorSettingsStore.isAdvancedEditor = true
           },
         },
       ].filter(Boolean)
     })
 
-    const handleMenuCommand = (item: any) => {
-      item?.props?.onClick?.()
-    }
-
     const titleInputRef = ref()
 
     const handleBack = () => {
-      const back = () => {
-        keeStore.detailUuid = null
-        if (isBackRefresh.value) {
-          globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
-        }
-      }
-      if (keeStore.isChanged) {
-        window.$dialog.warning({
-          title: 'Confirm',
-          content: 'Discard Changes?',
-          positiveText: 'OK',
-          negativeText: 'Cancel',
-          onPositiveClick: () => {
-            back()
-          },
-          onNegativeClick: () => { },
-        })
-        return
-      }
-      back()
+      emit('close')
     }
+
+    onBeforeUnmount(() => {
+      if (isBackRefresh.value) {
+        globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
+      }
+    })
 
     return {
       keeStore,
       settingsStore,
       editorSettingsStore,
       entryDetail,
+      isChanged,
+      markChanged,
       handleBack,
       entryDetailTimes,
       handleSave,
-      handleMenuCommand,
       commonSaveDatabase,
       keepassIcons,
       complexEditorRef,
@@ -239,88 +266,53 @@ export default defineComponent({
 <template>
   <div class="detail-view">
     <div class="layout-inner-root">
-      <div class="detail-header">
-        <div class="header-space">
-          <el-button text @click="handleBack">
-            <el-icon :size="18">
-              <span class="mdi mdi-arrow-left" />
-            </el-icon>&nbsp;Back
-          </el-button>
-
-          <div class="entry-title" v-if="entryDetail">
-            <el-dropdown trigger="hover" @command="handleMenuCommand">
-              <el-button size="small" text @click="isShowIconEdit = true">
-                <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor" :fg-color="entryDetail.fgColor" />
-                <span v-if="keeStore.isChanged">* </span>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-for="(item, index) in menuOptions" :key="index" :command="item">
-                    {{ item.label }}
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-
-          <div class="vgo-u-flex-wrap-center">
-            <el-button :type="saveBtnInfo.type" :text="saveBtnInfo.text" :plain="saveBtnInfo.plain"
-              :disabled="saveBtnInfo.disabled" @click="handleSave">
-              <el-icon :size="18">
-                <span class="mdi mdi-content-save" />
-              </el-icon>&nbsp;{{ saveBtnInfo.label }}
-            </el-button>
-          </div>
-        </div>
-      </div>
-
       <div v-if="entryDetail && entryDetail.fieldsV2" class="detail-card-wrap">
         <div class="detail-card">
           <div class="detail-infos">
             <div class="detail-info-row">
               <div class="vgo-u-flex-wrap-center">
-                <el-date-picker size="small" v-model="entryDetailTimes[0]" type="datetime"
-                  @update:model-value="keeStore.isChanged = true" title="Create Time" />
-                <el-date-picker size="small" v-model="entryDetailTimes[1]" type="datetime" disabled
-                  title="Update Time" />
+                <MenuTrigger :items="menuOptions">
+                  <button class="vgo-button vgo-button--icon" title="Note actions">
+                    <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor"
+                      :fg-color="entryDetail.fgColor" :size="20" />
+                  </button>
+                </MenuTrigger>
+                <el-date-picker v-model="entryDetailTimes[0]" type="datetime" @update:model-value="markChanged(true)"
+                  title="Create Time" />
+                <el-date-picker v-model="entryDetailTimes[1]" type="datetime" disabled title="Update Time" />
               </div>
 
               <div class="vgo-u-flex-wrap-center">
-                <el-button size="small" text @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore"
-                  title="Toggle more details">
-                  <el-icon :size="18">
-                    <span v-if="editorSettingsStore.isShowMore" class="mdi mdi-dots-horizontal-circle" />
-                    <span v-else class="mdi mdi-dots-horizontal-circle-outline" />
-                  </el-icon>
-                </el-button>
+                <button class="vgo-button vgo-button--icon"
+                  @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore" title="Toggle more details">
+                  <span v-if="editorSettingsStore.isShowMore" class="mdi mdi-dots-horizontal-circle" />
+                  <span v-else class="mdi mdi-dots-horizontal-circle-outline" />
+                </button>
 
-                <el-button size="small" text v-if="editorSettingsStore.isAdvancedEditor" @click="showEditorSettings"
-                  title="Editor Settings">
-                  <el-icon :size="18">
-                    <span class="mdi mdi-cog-outline" />
-                  </el-icon>
-                </el-button>
+                <button v-if="editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon"
+                  @click="showEditorSettings" title="Editor Settings">
+                  <span class="mdi mdi-cog-outline" />
+                </button>
               </div>
             </div>
 
-            <el-input size="small" ref="titleInputRef" autofocus v-model="entryDetail.fieldsV2.Title" type="text"
-              placeholder="Title" />
+            <el-input ref="titleInputRef" v-model="entryDetail.fieldsV2.Title" type="text" placeholder="Title" />
 
             <el-collapse-transition>
               <div v-show="entryDetail && editorSettingsStore.isShowMore">
                 <div class="extra-info">
                   <div class="extra-item">
                     <label>Username</label>
-                    <el-input size="small" v-model="entryDetail.fieldsV2.UserName" placeholder="" />
+                    <el-input v-model="entryDetail.fieldsV2.UserName" placeholder="" />
                   </div>
                   <div class="extra-item">
                     <label>Password</label>
-                    <el-input size="small" v-model="entryDetail.fieldsV2.Password" type="password" show-password
+                    <el-input v-model="entryDetail.fieldsV2.Password" type="password" show-password
                       class="vgo-u-font-code" />
                   </div>
                   <div class="extra-item">
                     <label>URL</label>
-                    <el-input size="small" v-model="entryDetail.fieldsV2.URL" placeholder="" />
+                    <el-input v-model="entryDetail.fieldsV2.URL" placeholder="" />
                   </div>
                 </div>
 
@@ -345,56 +337,10 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .detail-view {
-  top: 0;
-  left: 0;
-  z-index: 100;
-  position: absolute;
   width: 100%;
   height: 100%;
   background: var(--vgo-surface);
-  $min_width: 800px;
-
-  .detail-header {
-    border-bottom: 1px solid var(--vgo-border);
-
-    .header-space {
-      width: 100%;
-      height: 100%;
-      padding: 6px 24px;
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-
-      @media screen and (max-width: $min_width) {
-        padding: 2px;
-      }
-
-      @media screen and (max-height: 500px) {
-        height: 10px;
-        overflow: hidden;
-        transition: all 0.3s;
-        opacity: 0;
-
-        &:hover {
-          opacity: 1;
-          height: 100%;
-          border: 1px dashed;
-        }
-      }
-    }
-  }
-
-  .entry-title {
-    max-width: 50vw;
-    font-weight: 500;
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  overflow: hidden;
 
   .layout-inner-root {
     height: 100%;
@@ -415,12 +361,13 @@ export default defineComponent({
     .detail-card {
       margin-left: auto;
       margin-right: auto;
-      width: $min_width;
+      width: 800px;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      height: 100%;
 
-      @media screen and (max-width: $min_width) {
+      @media screen and (max-width: 800px) {
         width: 100%;
         padding: 0 10px;
         box-sizing: border-box;
@@ -467,9 +414,8 @@ export default defineComponent({
           grid-template-columns: repeat(3, 1fr);
           grid-template-rows: auto;
           gap: 8px;
-          padding-top: 10px;
 
-          @media screen and (max-width: $min_width) {
+          @media screen and (max-width: 800px) {
             grid-template-columns: repeat(1, 1fr);
           }
 

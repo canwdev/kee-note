@@ -3,10 +3,12 @@ import {defineComponent} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import keepassIcons from '@/assets/icons'
+import {ModalWindow} from '@canwdev/vgo-ui'
 
 export default defineComponent({
   name: 'DialogIconChooser',
   components: {
+    ModalWindow,
     IconDisplay,
   },
   props: {
@@ -34,7 +36,11 @@ export default defineComponent({
 </script>
 
 <template>
-  <el-dialog v-model="mVisible" title="Choose Icon" width="520px" append-to-body>
+  <ModalWindow
+    v-model:visible="mVisible"
+    title="Choose Icon"
+    :init-win-options="{width: '520px'}"
+  >
     <div class="icon-chooser-grid">
       <el-button
         v-for="(item, index) in keepassIcons"
@@ -45,7 +51,7 @@ export default defineComponent({
         <IconDisplay :size="32" :icon="Number(index)" />
       </el-button>
     </div>
-  </el-dialog>
+  </ModalWindow>
 </template>
 
 <style lang="scss" scoped>
