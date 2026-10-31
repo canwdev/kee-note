@@ -43,6 +43,20 @@ Serve `dist/` with any static file server over HTTPS (or localhost). Opening
 `index.html` from `file://` will not work because the File System Access API
 requires a secure context.
 
+## CI: pre-releases & GitHub Pages
+
+`.github/workflows/build-release-pages.yml` runs on every push to `master`
+(and manually via `workflow_dispatch`):
+
+1. `bun install --frozen-lockfile` + `bun run build`
+2. Creates a **pre-release** tagged `v<package.json version>-pre.<run>` with
+   `kee-note-web.zip` (containing `dist/`) attached
+3. Publishes `dist/` to GitHub Pages
+
+One-time repo setup: **Settings → Pages → Build and deployment → Source:
+GitHub Actions**, and allow `contents: write` + `pages: write` for the workflow
+(the permissions are already declared in the workflow file).
+
 ## Notes
 
 - `src/core/database.ts` owns the in-memory `Kdbx` object and exposes a typed

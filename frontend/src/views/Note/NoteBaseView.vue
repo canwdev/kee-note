@@ -412,7 +412,7 @@ export default defineComponent({
   flex-direction: column;
 
   .nav-header-content {
-    padding: 8px 24px;
+    padding: 8px;
     box-sizing: border-box;
     user-select: none;
     display: flex;
