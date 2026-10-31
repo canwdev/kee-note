@@ -12,7 +12,7 @@ import {useCnHoliday} from '@/components/NoteViews/Calendar/use-holiday'
 import {pad2Num} from '@/utils'
 import HolidayDisplay from '@/components/NoteViews/Calendar/HolidayDisplay.vue'
 import DataVisualization from '@/components/NoteViews/DataVisualization/index.vue'
-import {openDetailWindow} from '@/hooks/use-detail-windows'
+import {openDetailWindow} from '@/hooks/use-note-windows'
 import moment from 'moment/moment'
 
 export default defineComponent({

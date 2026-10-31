@@ -1,7 +1,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
-import {kService} from '@/api'
+import {db} from '@/core/database'
 import {EntryItem} from '@/enum/kdbx'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import {formatDate} from '@/utils'
@@ -71,10 +71,7 @@ export default defineComponent({
       }
       const map = {}
       for (const name of imageNames) {
-        const blob = await kService.getAttachment({
-          uuid: detail.uuid,
-          filename: name,
-        })
+        const blob = db.getAttachment(detail.uuid, name)
         map[name] = URL.createObjectURL(blob)
       }
       imageNameUrlMap.value = map
@@ -87,7 +84,7 @@ export default defineComponent({
       if (previewDetail.value) {
         detail = previewDetail.value
       } else {
-        detail = await kService.getEntryDetail({uuid: uuid.value})
+        detail = db.getEntryDetail(uuid.value)
       }
 
       if (!detail) {

@@ -1,33 +1,33 @@
 <script lang="ts">
-import { kService } from '@/api'
+import { db } from '@/core/database'
 import { GroupItem } from '@/enum/kdbx'
 import { defineComponent } from 'vue'
 import { WindowDock, WindowStack } from '@canwdev/vgo-ui'
-import globalEventBus, { GlobalEvents, saveDatabaseAsync } from '@/utils/bus'
+import type { ManagedWindow } from '@canwdev/vgo-ui'
+import globalEventBus, { GlobalEvents } from '@/utils/bus'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import ListView from '@/components/NoteViews/ListView.vue'
 import CalendarView from '@/components/NoteViews/Calendar/CalendarView.vue'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import DialogIconChooser from '@/components/NoteViews/Dialogs/DialogIconChooser.vue'
-import { useMainStore } from '@/store/main'
 
-import { importEntryListJson } from '@/utils/export-import'
 import { useSettingsStore } from '@/store/settings'
-import { useKeeNoteGroupManage, useKeeNoteSaveClose } from '@/hooks/use-keenote'
+import { useDatabaseSave, useKeeNoteGroupManage } from '@/hooks/use-keenote'
 import DetailView from '@/views/Note/DetailView.vue'
-import { checkDatabaseIsOpen } from '@/api/keepass'
-import DialogSearch from '@/components/NoteViews/DataSearch/DialogSearch.vue'
+import SearchDatabaseView from '@/components/NoteViews/DataSearch/SearchDatabaseView.vue'
 import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
+import type { NoteWindowData } from '@/hooks/use-note-windows'
 import {
-  closeAllDetailWindows,
-  detailWindows,
-} from '@/hooks/use-detail-windows'
+  closeAllNoteWindows,
+  noteWindows,
+  openSearchWindow,
+} from '@/hooks/use-note-windows'
 
 export default defineComponent({
   name: 'NoteLayout',
   components: {
     IconDisplay,
-    DialogSearch,
+    SearchDatabaseView,
     MenuTrigger,
     WindowDock,
     WindowStack,
@@ -37,25 +37,25 @@ export default defineComponent({
     DialogIconChooser,
   },
   setup() {
-    const mainStore = useMainStore()
     const settingsStore = useSettingsStore()
 
-    const getMenuOptions = (option, event?: MouseEvent) => {
+    /**
+     * 分组菜单：左侧树右键菜单包含创建项；
+     * 顶栏全局菜单只用分组管理项（创建入口由独立的“+”菜单提供）。
+     */
+    const getMenuOptions = (option, event?: MouseEvent, includeCreate = true) => {
       let isRootSelected = option
         ? option.uuid === rootGroupUuid.value
         : groupUuid.value === rootGroupUuid.value
 
       const isShiftPressed = event?.shiftKey
-
-      let isEmptyRecycleBin = false
-      if (option) {
-        isEmptyRecycleBin = keeStore.recycleBinUuid === option.uuid
-      } else {
-        isEmptyRecycleBin = keeStore.recycleBinUuid === editingUuid.value
-      }
+      // 已在回收站中的分组不再显示“移到回收站”，只保留永久删除
+      const isPermanentDelete = isShiftPressed || isGroupInRecycleBin(
+        option ? option.uuid : editingUuid.value,
+      )
 
       return [
-        {
+        includeCreate && {
           label: 'Create Note',
           icon: 'mdi-note-plus-outline',
           onClick: () => {
@@ -64,7 +64,7 @@ export default defineComponent({
             })
           },
         },
-        {
+        includeCreate && {
           label: 'Create Group',
           icon: 'mdi-folder-plus-outline',
           onClick: () => {
@@ -91,30 +91,6 @@ export default defineComponent({
             })
           },
         },
-        {
-          label: 'Import JSON',
-          icon: 'mdi-import',
-          onClick: () => {
-            handleImportJson()
-          },
-        },
-        !isRootSelected && {
-          label: isEmptyRecycleBin
-            ? 'Empty Recycle Bin'
-            : isShiftPressed
-              ? 'Permanent Delete'
-              : 'Move to Recycle Bin',
-          icon: isEmptyRecycleBin
-            ? 'mdi-delete-empty-outline'
-            : isShiftPressed
-              ? 'mdi-delete-forever-outline'
-              : 'mdi-trash-can-outline',
-          onClick: () => {
-            nodeAction(option, () => {
-              confirmRemoveGroup(isShiftPressed)
-            })
-          },
-        },
       ].filter(Boolean)
     }
 
@@ -126,23 +102,18 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', listenShortcuts)
     })
+    // 全局快捷键：Ctrl+S 保存内存中的修改，Ctrl+L 锁定
     const listenShortcuts = (event) => {
-      if (event.ctrlKey || event.metaKey) {
-        const key = event.key.toLowerCase()
-        if (key === 'l') {
-          event.preventDefault()
-          if (!keeStore.isChanged) {
-            handleToggleLock()
-          }
-        } else if (key === 's') {
-          if (!detailWindows.windows.length) {
-            event.preventDefault()
-            if (keeStore.isNotSave) {
-              // TODO: 处理快速重复按键，避免重复请求
-              commonSaveDatabase()
-            }
-          }
-        }
+      if (!(event.ctrlKey || event.metaKey)) {
+        return
+      }
+      const key = event.key.toLowerCase()
+      if (key === 's') {
+        event.preventDefault()
+        void saveDatabase()
+      } else if (key === 'l') {
+        event.preventDefault()
+        void handleToggleLock()
       }
     }
 
@@ -158,22 +129,49 @@ export default defineComponent({
       handleCreateEntry,
       handleCreateGroup,
       confirmRemoveGroup,
+      isGroupInRecycleBin,
       handleTreeDrop,
+      allowTreeDrop,
       showRenameModal,
       isShowChooseIconModal,
       handleSelectIcon,
       handleToggleLock,
     } = useKeeNoteGroupManage(editingNode)
 
-    const { commonSaveDatabase } = useKeeNoteSaveClose()
+    const { saveDatabase } = useDatabaseSave()
 
     onActivated(async () => {
-      keeStore.isDbOpened = await kService.checkDatabaseIsOpen()
-      if (keeStore.isDbOpened) {
+      if (db.isOpen) {
         await getGroupTree()
       } else {
         await handleOpenDatabase()
       }
+    })
+
+    // 新建条目/分组统一放到顶栏的“+”菜单
+    const createMenuOptions = computed(() => {
+      if (!keeStore.isDbOpened || !editingUuid.value) {
+        return []
+      }
+      return [
+        {
+          label: 'Create Note',
+          icon: 'mdi-note-plus-outline',
+          onClick: () => {
+            // 顶栏“+”菜单始终创建在当前选中的分组中
+            editingNode.value = null
+            handleCreateEntry()
+          },
+        },
+        {
+          label: 'Create Group',
+          icon: 'mdi-folder-plus-outline',
+          onClick: () => {
+            editingNode.value = null
+            handleCreateGroup()
+          },
+        },
+      ]
     })
 
     const menuOptionsBase = [
@@ -199,17 +197,18 @@ export default defineComponent({
         },
         ...menuOptionsBase,
       ]
-      if (groupUuid.value) {
-        return [
-          ...getMenuOptions(null),
-          {
-            label: '',
-            divided: 'self',
-          },
-          ...options,
-        ]
+      const groupOptions = groupUuid.value ? getMenuOptions(null, undefined, false) : []
+      if (!groupOptions.length) {
+        return options
       }
-      return options
+      return [
+        ...groupOptions,
+        {
+          label: '',
+          divided: 'self',
+        },
+        ...options,
+      ]
     })
 
     const updateSidebarCollapsed = (sizes: number[]) => {
@@ -224,42 +223,51 @@ export default defineComponent({
       updateSidebarCollapsed(sizes)
     }
 
-    const handleImportJson = async () => {
-      await importEntryListJson(editingUuid.value)
-    }
-
-    const detailWindowProps = () => ({
-      class: 'detail-window',
-      style: {
+    const noteWindowProps = (win: ManagedWindow<NoteWindowData>) => {
+      const style = {
         minWidth: '320px',
         minHeight: '200px',
         outline: 'none',
-      },
-      initWinOptions: {
-        width: 'min(960px, 90vw)',
-        height: 'min(720px, 85vh)',
-      },
-    })
+      }
 
-    const detailViewRefs = new Map<string, any>()
+      if (win.data.kind === 'search') {
+        return {
+          class: 'search-window',
+          style,
+          initWinOptions: {
+            width: 'min(620px, 92vw)',
+            height: 'min(640px, 80vh)',
+          },
+        }
+      }
 
-    const setDetailViewRef = (id: string, el: any) => {
-      if (el) {
-        detailViewRefs.set(id, el)
-      } else {
-        detailViewRefs.delete(id)
+      // 详情窗口层叠摆放，新窗口相对旧窗口偏移，避免完全重叠。
+      // 与 vgo-ui WindowManager 的“新建记事本”示例一致。
+      const detailIndex = noteWindows.windows
+        .filter((item) => item.data.kind === 'detail')
+        .indexOf(win)
+      const cascadeIndex = detailIndex === -1 ? 0 : detailIndex
+
+      return {
+        class: 'detail-window',
+        style,
+        initCenter: false,
+        initWinOptions: {
+          width: 'min(960px, 90vw)',
+          height: 'min(720px, 85vh)',
+          left: `${80 + cascadeIndex * 32}px`,
+          top: `${80 + cascadeIndex * 32}px`,
+        },
       }
     }
 
-    const handleDetailSave = (id: string) => {
-      detailViewRefs.get(id)?.handleSave?.()
-    }
-
     onBeforeUnmount(() => {
-      closeAllDetailWindows()
+      closeAllNoteWindows()
     })
 
-    const isShowSearchDialog = ref(false)
+    const handleOpenSearch = () => {
+      openSearchWindow()
+    }
 
     const treeProps = {
       children: 'children',
@@ -271,25 +279,24 @@ export default defineComponent({
     }
 
     return {
-      mainStore,
       settingsStore,
       keeStore,
       groupTree,
       selectedKeys,
       menuOptions,
+      createMenuOptions,
       editingNode,
       isShowChooseIconModal,
       treeProps,
       handleNodeClick,
       handleTreeDrop,
+      allowTreeDrop,
       handleSelectIcon,
       handleToggleLock,
-      detailWindows,
-      detailWindowProps,
-      setDetailViewRef,
-      handleDetailSave,
-      commonSaveDatabase,
-      isShowSearchDialog,
+      noteWindows,
+      noteWindowProps,
+      saveDatabase,
+      handleOpenSearch,
       handleContextmenu,
       handleSplitterCollapse,
       handleSplitterResizeEnd,
@@ -303,26 +310,34 @@ export default defineComponent({
     <div class="nav-header-content">
       <div class="vgo-u-flex-wrap-center">
         <span class="logo-icon mdi mdi-lock"> </span>
-        <span class="note-title"> KeeNote {{ keeStore.isNotSave ? '*' : '' }}</span>
+        <span class="note-title"> KeeNote {{ keeStore.isDirty ? '*' : '' }}</span>
 
-        <button v-if="keeStore.isNotSave" @click="commonSaveDatabase" title="Save (ctrl+s)" class="vgo-u-button-reset">
-          <span class="mdi mdi-content-save"></span>
+        <button class="vgo-u-button-reset save-button" :class="{ 'is-dirty': keeStore.isDirty }"
+          :disabled="!keeStore.isDirty" :title="keeStore.isDirty ? 'Save (Ctrl+S)' : 'All changes saved'"
+          @click="saveDatabase">
+          <span class="mdi" :class="keeStore.isDirty ? 'mdi-content-save' : 'mdi-content-save-check-outline'" />
         </button>
       </div>
 
       <div class="vgo-u-flex-wrap-center">
         <button class="vgo-u-button-reset" :title="keeStore.isDbOpened ? 'Lock' : 'Unlock'" @click="handleToggleLock">
-          <span v-if="keeStore.isDbOpened" class="mdi mdi-shield-lock"></span>
+          <span v-if="keeStore.isDbOpened" class="mdi mdi-lock-outline"></span>
           <span class="mdi mdi-key" v-else></span>
         </button>
 
-        <button class="vgo-u-button-reset" title="Search" @click="isShowSearchDialog = true">
+        <button class="vgo-u-button-reset" title="Search" @click="handleOpenSearch">
           <span class="mdi mdi-magnify"></span>
         </button>
 
+        <MenuTrigger v-if="createMenuOptions.length" :items="createMenuOptions">
+          <button class="vgo-u-button-reset" title="Create">
+            <span class="mdi mdi-plus"></span>
+          </button>
+        </MenuTrigger>
+
         <MenuTrigger :items="menuOptions">
           <button class="vgo-u-button-reset" title="Menu">
-            <span class="mdi mdi-cog"></span>
+            <span class="mdi mdi-dots-vertical"></span>
           </button>
         </MenuTrigger>
       </div>
@@ -332,9 +347,9 @@ export default defineComponent({
         <div class="tree-wrap-outer">
           <div class="tree-wrap content-padding">
             <el-tree :data="groupTree" node-key="uuid" :props="treeProps" :current-node-key="selectedKeys[0]"
-              highlight-current default-expand-all :expand-on-click-node="false" draggable @node-click="handleNodeClick"
-              @node-contextmenu="(event, data) => handleContextmenu(event, data)"
-              @node-drop="(dragNode, dropNode) => handleTreeDrop(dragNode.data, dropNode.data)">
+              highlight-current default-expand-all :expand-on-click-node="false" draggable :allow-drop="allowTreeDrop"
+              @node-click="handleNodeClick" @node-contextmenu="(event, data) => handleContextmenu(event, data)"
+              @node-drop="handleTreeDrop">
               <template #default="{ data }">
                 <span class="tree-node">
                   <IconDisplay :icon="data.icon" :size="18" />
@@ -357,40 +372,35 @@ export default defineComponent({
 
   </div>
 
-  <WindowStack :manager="detailWindows" :window-props="detailWindowProps">
+  <WindowStack :manager="noteWindows" :window-props="noteWindowProps">
     <template #title="{ win }">
-      <IconDisplay v-if="win.data.icon !== undefined" class="detail-window-title-icon" :icon="win.data.icon"
-        :bg-color="win.data.bgColor ?? undefined" :fg-color="win.data.fgColor ?? undefined" :size="20" title="Double-click to close"
-        @dblclick.stop="detailWindows.requestClose(win.id)" />
-      <span v-else class="mdi mdi-note-text-outline detail-window-title-icon" title="Double-click to close"
-        @dblclick.stop="detailWindows.requestClose(win.id)" />
-      <span class="detail-window-title-text">
-        <span v-if="win.data.dirty" class="detail-window-dirty">• </span>{{ win.title }}
-      </span>
-    </template>
-
-    <template #controls="{ win }">
-      <button class="vgo-button vgo-button--text" :class="{ 'vgo-button--primary': win.data.savePrimary }"
-        :disabled="win.data.saveDisabled" @click="handleDetailSave(win.id)">
-        <span class="mdi mdi-content-save" />
-        {{ win.data.saveLabel }}
-      </button>
+      <template v-if="win.data.kind === 'detail'">
+        <IconDisplay v-if="win.data.icon !== undefined" class="detail-window-title-icon" :icon="win.data.icon"
+          :bg-color="win.data.bgColor ?? undefined" :fg-color="win.data.fgColor ?? undefined" :size="20"
+          title="Double-click to close" @dblclick.stop="noteWindows.requestClose(win.id)" />
+        <span v-else class="mdi mdi-note-text-outline detail-window-title-icon" title="Double-click to close"
+          @dblclick.stop="noteWindows.requestClose(win.id)" />
+      </template>
+      <span v-else class="mdi mdi-magnify detail-window-title-icon" title="Double-click to close"
+        @dblclick.stop="noteWindows.requestClose(win.id)" />
+      <span class="detail-window-title-text">{{ win.title }}</span>
     </template>
 
     <template #default="{ win, close }">
-      <DetailView :ref="(el) => setDetailViewRef(win.id, el)" :uuid="win.data.uuid" @close="close" />
+      <DetailView v-if="win.data.kind === 'detail'" :uuid="win.data.uuid" @close="close" />
+      <SearchDatabaseView v-else />
     </template>
   </WindowStack>
 
-  <WindowDock :manager="detailWindows" class="detail-window-dock">
-    <template #icon>
+  <WindowDock :manager="noteWindows" class="detail-window-dock">
+    <template #icon="{ win }">
       <span class="dock-icon-wrap vgo-panel">
-        <span class="mdi mdi-note-text-outline" />
+        <IconDisplay v-if="win.data.kind === 'detail' && win.data.icon !== undefined" :icon="win.data.icon"
+          :bg-color="win.data.bgColor ?? undefined" :fg-color="win.data.fgColor ?? undefined" :size="20" />
+        <span v-else class="mdi" :class="win.data.kind === 'search' ? 'mdi-magnify' : 'mdi-note-text-outline'" />
       </span>
     </template>
   </WindowDock>
-
-  <DialogSearch v-model:visible="isShowSearchDialog" />
 </template>
 
 <style lang="scss" scoped>
@@ -491,10 +501,21 @@ export default defineComponent({
   white-space: nowrap;
 }
 
-.detail-window-dirty {
-  color: var(--primary);
-}
+/* 全局保存按钮：有未保存修改时高亮，无修改时置灰 */
+.save-button {
+  .mdi {
+    transition: color var(--vgo-duration-fast) ease;
+  }
 
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  &.is-dirty .mdi {
+    color: var(--primary);
+  }
+}
 
 .dock-icon-wrap {
   display: flex;

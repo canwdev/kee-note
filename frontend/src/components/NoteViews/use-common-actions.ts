@@ -1,58 +1,41 @@
 import {useContextMenu} from '@/hooks/use-context-menu'
-import {openDetailWindow} from '@/hooks/use-detail-windows'
-import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
-import {kService} from '@/api'
-import {useRoute, useRouter} from 'vue-router'
+import {openDetailWindow} from '@/hooks/use-note-windows'
+import globalEventBus, {GlobalEvents} from '@/utils/bus'
+import {db} from '@/core/database'
+import {useRoute} from 'vue-router'
 import {EntryItem} from '@/enum/kdbx'
-import {useKeeStore} from '@/store/kee-store'
 
-import {aLinkDownload, exportEntryListJson} from '@/utils/export-import'
 import {formatDate} from '@/utils'
 import moment from 'moment/moment'
 
 export const useCommonActions = (options) => {
-  const router = useRouter()
   const route = useRoute()
-  const keeStore = useKeeStore()
   const {getEntryList, checkedRowKeys = ref([])} = options || {}
   const isShowGroupSelectModal = ref(false)
   const isShowPreviewModal = ref(false)
 
-  const groupUuid = computed((): string => String(route.query.groupUuid || ''))
-
   const handleDeleteEntry = async (uuid: string, isDelete = false) => {
     if (isDelete) {
-      await kService.moveEntry({
-        uuid: uuid,
-        groupUuid: null,
-      })
+      db.moveEntry(uuid, null)
     } else {
-      await kService.removeEntry({
-        uuid: uuid,
-      })
+      db.removeEntry(uuid)
     }
-    await saveDatabaseAsync()
     await getEntryList()
     globalEventBus.emit(GlobalEvents.REFRESH_GROUP_TREE)
   }
 
-  const handleExportJson = async () => {
-    await exportEntryListJson(checkedRowKeys.value)
-  }
-
   const getMenuOptions = (item: EntryItem | any): any[] => {
     const isMultiple = Boolean(checkedRowKeys.value.length)
-    const isInRecycleBin = keeStore.recycleBinUuid === groupUuid.value
+    // 条目所在（子）分组位于回收站时，不再显示“移到回收站”
+    const isInRecycleBin = item?.uuid
+      ? db.isEntryInRecycleBin(item.uuid)
+      : checkedRowKeys.value.length > 0 && db.isEntryInRecycleBin(checkedRowKeys.value[0])
 
     const handleCreateEntry = async (date: Date) => {
-      const entry = await kService.createEntry({
-        groupUuid: route.query.groupUuid,
-        config: {
-          title: formatDate(date),
-          creationTime: date.getTime(),
-        },
+      const entry = db.createEntry(String(route.query.groupUuid || ''), {
+        title: formatDate(date),
+        creationTime: date.getTime(),
       })
-      await saveDatabaseAsync()
 
       openDetailWindow(entry.uuid, entry.title)
       globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
@@ -92,13 +75,6 @@ export const useCommonActions = (options) => {
         icon: 'mdi-pencil-outline',
         onClick: () => {
           openDetailWindow(item.uuid, item.title)
-        },
-      },
-      isMultiple && {
-        label: 'Export JSON (no attachments)',
-        icon: 'mdi-file-export-outline',
-        onClick: () => {
-          handleExportJson()
         },
       },
       {
@@ -152,12 +128,11 @@ export const useCommonActions = (options) => {
       console.warn('no entry selected', checkedRowKeys)
       return
     }
-    await kService.moveEntry({
-      groupUuid: groupUuid,
-      uuid: checkedRowKeys.value.length ? [...checkedRowKeys.value] : editingNode.value.uuid,
-    })
+    db.moveEntry(
+      checkedRowKeys.value.length ? [...checkedRowKeys.value] : editingNode.value.uuid,
+      groupUuid,
+    )
 
-    await saveDatabaseAsync()
     await getEntryList()
     editingNode.value = null
   }

@@ -7,9 +7,33 @@
  * 读写与打开/保存对话框都通过 hooks 暴露，便于外部替换实现。
  */
 
+import { isProxy, toRaw } from 'vue'
+
 export type FileRef =
   | {kind: 'sdk'; path: string; name: string}
   | {kind: 'handle'; handle: FileSystemFileHandle; name: string}
+
+/**
+ * 复制出一份原始 FileRef，并解开 Vue 的响应式代理。
+ *
+ * Proxy 无法被结构化克隆，直接写入 IndexedDB / 通过 postMessage 传递会抛出
+ * `DataCloneError: #<Object> could not be cloned`。所以 FileRef 可能在 store、
+ * 列表渲染结果里被代理包裹，凡是跨边界（持久化、跨标签页）前都必须先转成原始对象。
+ */
+export function toPlainFileRef(ref: FileRef | null | undefined): FileRef | null {
+  if (!ref) {
+    return null
+  }
+  const raw = (isProxy(ref) ? toRaw(ref) : ref) as FileRef
+  if (raw.kind === 'sdk') {
+    return {kind: 'sdk', path: String(raw.path), name: String(raw.name)}
+  }
+  if (raw.kind === 'handle') {
+    const handle = isProxy(raw.handle) ? (toRaw(raw.handle) as FileSystemFileHandle) : raw.handle
+    return {kind: 'handle', handle, name: String(raw.name)}
+  }
+  return null
+}
 
 export interface PickFileOptions {
   title?: string

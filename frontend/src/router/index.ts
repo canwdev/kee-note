@@ -1,6 +1,6 @@
 import {createRouter, createWebHashHistory} from 'vue-router'
 import UnlockView from '@/views/Home/UnlockView.vue'
-import {isDatabaseOpen} from '@/utils/backend'
+import {isDatabaseOpen} from '@/core/database'
 import pkg from '../../package.json'
 
 const constantRoutes = [

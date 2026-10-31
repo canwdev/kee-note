@@ -1,12 +1,15 @@
-export const useBeforeUnload = (checkIsChanged) => {
-  const handleBeforeUnload = (e) => {
-    if (checkIsChanged()) {
-      e.preventDefault()
-      e.returnValue = 'There is unsaved data.'
-      window.$message.warning(e.returnValue)
-      return true
+/**
+ * 内存中有未保存修改时，阻止关闭 / 刷新浏览器标签页。
+ * 浏览器只允许通过 beforeunload 弹原生确认框，无法自定义文案。
+ */
+export const useBeforeUnload = (checkIsDirty: () => boolean) => {
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (!checkIsDirty()) {
+      return
     }
-    return undefined
+    e.preventDefault()
+    e.returnValue = 'There is unsaved data.'
+    return e.returnValue
   }
   onMounted(() => {
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -14,12 +17,4 @@ export const useBeforeUnload = (checkIsChanged) => {
   onBeforeUnmount(() => {
     window.removeEventListener('beforeunload', handleBeforeUnload)
   })
-}
-
-export const useUnSavedChanges = () => {
-  const isChanged = ref(false)
-  useBeforeUnload(() => isChanged.value)
-  return {
-    isChanged,
-  }
 }

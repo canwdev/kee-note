@@ -1,14 +1,14 @@
 import {useRoute, useRouter} from 'vue-router'
 import {useKeeStore} from '@/store/kee-store'
 import {EntryItem, GroupItem} from '@/enum/kdbx'
-import {kService} from '@/api'
-import globalEventBus, {GlobalEvents, saveDatabaseAsync} from '@/utils/bus'
+import {db} from '@/core/database'
+import globalEventBus, {GlobalEvents} from '@/utils/bus'
 import {updateActiveHistoryLastGroup} from '@/utils/db-history'
 import {useSettingsStore} from '@/store/settings'
-import {hasDatabaseFileHandle} from '@/utils/backend'
 import {showInputPrompt} from '@/components/CommonUI/input-prompt'
-import {openDetailWindow} from '@/hooks/use-detail-windows'
+import {closeAllNoteWindows, openDetailWindow} from '@/hooks/use-note-windows'
 import {formatDate} from '@/utils'
+import {showError} from '@/utils/feedback'
 import {ElMessageBox} from 'element-plus'
 
 export interface CalendarData {
@@ -70,26 +70,87 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
   })
 
   const getGroupTree = async () => {
-    keeStore.dbInfo = await kService.getMeta()
-    keeStore.isNotSave = keeStore.dbInfo?.isNotSave || false
+    keeStore.dbInfo = db.getMeta()
 
-    groupTree.value = await kService.getGroupTree()
+    groupTree.value = db.getGroupTree()
 
     if (!selectedKeys.value.length && groupTree.value.length) {
       selectedKeys.value = [groupTree.value[0].uuid]
     }
   }
 
-  const handleTreeDrop = async (dragNode: any, dropNode: any) => {
-    const {uuid} = dragNode?.data || dragNode
-    const {uuid: targetUuid} = dropNode?.data || dropNode
+  /**
+   * el-tree 的 allow-drop：只允许把分组拖到合法位置。
+   * type: 'prev' | 'inner' | 'next'
+   */
+  const allowTreeDrop = (draggingNode: any, dropNode: any, type: string): boolean => {
+    const dragUuid = draggingNode?.data?.uuid
+    const dropUuid = dropNode?.data?.uuid
+    if (!dragUuid || !dropUuid || dragUuid === dropUuid) {
+      return false
+    }
+    // 根分组和回收站分组是系统分组，不可拖动
+    if (dragUuid === rootGroupUuid.value || dragUuid === keeStore.recycleBinUuid) {
+      return false
+    }
+    if (type === 'inner') {
+      // 不能拖进自己的子孙分组
+      return !db.isGroupInSubtree(dropUuid, dragUuid)
+    }
+    // before/after：落点为 dropNode 的父分组，顶层节点不允许重排
+    const parentNode = dropNode.parent
+    if (!parentNode || parentNode.level <= 0) {
+      return false
+    }
+    const parentUuid = parentNode.data?.uuid
+    return Boolean(parentUuid) && !db.isGroupInSubtree(parentUuid, dragUuid)
+  }
 
-    await kService.moveGroup({
-      uuid,
-      targetUuid,
-    })
-    await saveDatabaseAsync()
-    await getGroupTree()
+  /**
+   * el-tree 触发 node-drop 时已经在内部完成了乐观移动，
+   * 这里按“最终位置”同步到数据库（inner 进入分组，before/after 同级重排）。
+   */
+  const handleTreeDrop = async (
+    draggingNode: any,
+    dropNode: any,
+    dropType: 'before' | 'after' | 'inner',
+  ) => {
+    const dragUuid = draggingNode?.data?.uuid
+    try {
+      if (
+        !dragUuid ||
+        dragUuid === rootGroupUuid.value ||
+        dragUuid === keeStore.recycleBinUuid
+      ) {
+        return
+      }
+
+      if (dropType === 'inner') {
+        const dropUuid = dropNode?.data?.uuid
+        if (!dropUuid || db.isGroupInSubtree(dropUuid, dragUuid)) {
+          return
+        }
+        db.moveGroup(dragUuid, dropUuid)
+        return
+      }
+
+      // before / after：与 dropNode 同级，索引以 el-tree 移动后的最终顺序为准
+      const parentNode = dropNode?.parent
+      const parentUuid = parentNode?.level > 0 ? parentNode.data?.uuid : null
+      if (!parentUuid || db.isGroupInSubtree(parentUuid, dragUuid)) {
+        return
+      }
+      const index = parentNode.childNodes.findIndex(
+        (node: any) => node.data?.uuid === dragUuid,
+      )
+      db.moveGroup(dragUuid, parentUuid, index)
+    } catch (e) {
+      showError(e, 'Failed to move group')
+    } finally {
+      // 无论成功与否都用数据库中的真实结构重建树，
+      // 抵消 el-tree 在 node-drop 前做的乐观移动。
+      await getGroupTree()
+    }
   }
 
   const showOpenDbModal = async () => {
@@ -103,65 +164,66 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
     await handleOpenDatabase(password)
   }
 
-  const checkIsNotSave = async () => {
-    const val = await kService.checkDatabaseIsNotSave()
-  }
-
   const handleOpenDatabase = async (password?) => {
     if (keeStore.isDbOpened) {
       window.$message.info('Database already opened')
 
       return
-    } else if (!hasDatabaseFileHandle()) {
+    } else if (!db.hasFile()) {
       await router.replace({
         name: 'HomeView',
       })
       return
     }
     try {
-      await kService.openDatabase({password})
+      await db.open({password})
     } catch (e) {
       console.error(e)
-      keeStore.isDbOpened = false
       await showOpenDbModal()
 
       return
     }
 
-    keeStore.isDbOpened = true
     window.$message.success('Database successfully opened')
     await getGroupTree()
   }
 
   const handleCreateEntry = async () => {
-    const entry = await kService.createEntry({
-      groupUuid: editingUuid.value,
-      config: {title: formatDate(new Date())},
+    const entry = db.createEntry(editingUuid.value, {
+      title: formatDate(new Date()),
     })
-    await saveDatabaseAsync()
 
     openDetailWindow(entry.uuid, entry.title)
     globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
   }
 
   const handleCreateGroup = async () => {
-    await kService.createGroup({
-      groupUuid: editingUuid.value,
-      name: formatDate(new Date()),
-    })
-    await saveDatabaseAsync()
+    let name: string
+    try {
+      name = await showInputPrompt({
+        title: 'Create Group',
+        placeholder: 'Group name',
+        value: formatDate(new Date()),
+      })
+    } catch {
+      // 用户取消
+      return
+    }
+    if (!name) {
+      return
+    }
+    db.createGroup(editingUuid.value, name)
     await getGroupTree()
   }
 
+  const isGroupInRecycleBin = (uuid?: string | null) => db.isGroupInRecycleBin(uuid)
+
   const confirmRemoveGroup = (isDelete = false) => {
-    const isEmptyRecycleBin = keeStore.recycleBinUuid === editingUuid.value
     window.$dialog.warning({
-      title: isDelete || isEmptyRecycleBin ? 'Warning!!' : 'Confirm',
-      content: isEmptyRecycleBin
-        ? 'Empty Recycle Bin? (This can not be undo)'
-        : isDelete
+      title: isDelete ? 'Warning!!' : 'Confirm',
+      content: isDelete
         ? 'Permanent delete selected group? (This can not be undo)'
-        : 'Delete selected group? Permanently emptied if group is RecycleBin.',
+        : 'Move selected group to recycle bin?',
       positiveText: 'OK',
       negativeText: 'Cancel',
       onPositiveClick: () => {
@@ -173,16 +235,10 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
 
   const handleDeleteGroup = async (isDelete = false) => {
     if (isDelete) {
-      await kService.moveGroup({
-        uuid: editingUuid.value,
-        targetUuid: null,
-      })
+      db.moveGroup(editingUuid.value, null)
     } else {
-      await kService.removeGroup({
-        groupUuid: editingUuid.value,
-      })
+      db.removeGroup(editingUuid.value)
     }
-    await saveDatabaseAsync()
     await getGroupTree()
   }
 
@@ -205,11 +261,7 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
       return
     }
 
-    await kService.updateGroup({
-      uuid: editingUuid.value,
-      updates: [{path: 'name', value: name}],
-    })
-    await saveDatabaseAsync()
+    db.renameGroup(editingUuid.value, name)
     await getGroupTree()
     editingNode.value = null
   }
@@ -220,20 +272,16 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
       return
     }
 
-    await kService.updateGroup({
-      uuid: editingUuid.value,
-      updates: [{path: 'icon', value: icon}],
-    })
-    await saveDatabaseAsync()
+    db.setGroupIcon(editingUuid.value, icon)
     await getGroupTree()
     editingNode.value = null
     isShowChooseIconModal.value = false
   }
 
-  const {commonSaveDatabase, commonCloseDatabase} = useKeeNoteSaveClose()
+  const {closeDatabase} = useDatabaseSave()
 
   const handleCloseDatabase = async () => {
-    await commonCloseDatabase({
+    await closeDatabase({
       cleanupFn: () => {
         groupTree.value = []
       },
@@ -270,7 +318,9 @@ export const useKeeNoteGroupManage = (editingNode: Ref<GroupItem | null>) => {
     handleCreateEntry,
     handleCreateGroup,
     confirmRemoveGroup,
+    isGroupInRecycleBin,
     handleTreeDrop,
+    allowTreeDrop,
     handleDeleteGroup,
     showRenameModal,
     handleGroupEdit,
@@ -298,11 +348,75 @@ export const useKeeNoteEntryList = (options?) => {
 
   const groupUuid = computed((): string => String(route.query.groupUuid || ''))
 
+  // 详情窗口编辑写回内存后，就地替换列表/日历中的条目，避免整表刷新导致
+  // 分页回到第一页、选中状态被清空。
+  const patchEntryItem = (target: EntryItem, source: EntryItem) => {
+    target.title = source.title
+    target.icon = source.icon
+    target.bgColor = source.bgColor
+    target.fgColor = source.fgColor
+    target.groupName = source.groupName
+    target.creationTime = source.creationTime
+    target.lastModTime = source.lastModTime
+  }
+
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null
+  const scheduleRefresh = () => {
+    if (refreshTimer) {
+      clearTimeout(refreshTimer)
+    }
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null
+      getEntryList()
+    }, 300)
+  }
+
+  const handleEntryUpdated = (entry: EntryItem) => {
+    if (!entry) {
+      return
+    }
+    if (!isCalendar) {
+      const target = entryList.value.find((item) => item.uuid === entry.uuid)
+      if (target) {
+        patchEntryItem(target, entry)
+      }
+      return
+    }
+    // 日历数据按创建日期分桶，找到旧位置后判断日期是否变化
+    const creation = new Date(entry.creationTime)
+    const year = creation.getFullYear()
+    const month = creation.getMonth() + 1
+    const date = creation.getDate()
+    for (const [y, months] of Object.entries(calendarData.value)) {
+      for (const [m, days] of Object.entries(months)) {
+        for (const [d, list] of Object.entries(days)) {
+          const target = (list as EntryItem[]).find((item) => item.uuid === entry.uuid)
+          if (!target) {
+            continue
+          }
+          if (Number(y) === year && Number(m) === month && Number(d) === date) {
+            patchEntryItem(target, entry)
+          } else {
+            // 创建时间跨天：需要重新计算日历分桶
+            scheduleRefresh()
+          }
+          return
+        }
+      }
+    }
+  }
+
   onMounted(async () => {
     globalEventBus.on(GlobalEvents.REFRESH_ENTRY_LIST, getEntryList)
+    globalEventBus.on(GlobalEvents.ENTRY_UPDATED, handleEntryUpdated)
   })
   onBeforeUnmount(() => {
     globalEventBus.off(GlobalEvents.REFRESH_ENTRY_LIST, getEntryList)
+    globalEventBus.off(GlobalEvents.ENTRY_UPDATED, handleEntryUpdated)
+    if (refreshTimer) {
+      clearTimeout(refreshTimer)
+      refreshTimer = null
+    }
   })
 
   watch(
@@ -318,7 +432,7 @@ export const useKeeNoteEntryList = (options?) => {
 
   watch(
     () => groupUuid.value,
-    (val) => {
+    () => {
       getEntryList()
     },
   )
@@ -327,7 +441,7 @@ export const useKeeNoteEntryList = (options?) => {
     if (cleanupFn) {
       cleanupFn()
     }
-    if (!groupUuid.value) {
+    if (!groupUuid.value || !keeStore.isDbOpened) {
       entryList.value = []
       return
     }
@@ -336,15 +450,13 @@ export const useKeeNoteEntryList = (options?) => {
       if (getCalendarParams) {
         params = getCalendarParams()
       }
-      calendarData.value = await kService.getGroupEntriesDeep({
+      calendarData.value = db.getGroupEntriesDeep({
         groupUuid: groupUuid.value,
         isDayMapped: calendarIsMapped,
         ...params,
-      })
+      }) as CalendarData
     } else {
-      entryList.value = await kService.getGroupEntries({
-        groupUuid: groupUuid.value,
-      })
+      entryList.value = db.getGroupEntries(groupUuid.value)
     }
   }
 
@@ -357,79 +469,81 @@ export const useKeeNoteEntryList = (options?) => {
   }
 }
 
-export const useKeeNoteSaveClose = () => {
+/**
+ * 全局保存 / 锁定。
+ * 数据已在内存中，保存只是把内存对象加密写入磁盘文件。
+ */
+export const useDatabaseSave = () => {
   const keeStore = useKeeStore()
   const router = useRouter()
 
-  // 手动保存
-  const commonSaveDatabase = async () => {
-    if (keeStore.isDbOpened) {
-      await kService.saveDatabase()
-      keeStore.isNotSave = false
-      console.info('Database saved!')
-    } else {
-      console.error('database is not opened')
+  const saveDatabase = async () => {
+    if (!keeStore.isDbOpened || !keeStore.isDirty) {
+      return false
+    }
+    try {
+      await db.save()
+      window.$message.success('Database saved')
+      return true
+    } catch (e) {
+      showError(e, 'Failed to save database')
+      return false
     }
   }
 
-  let closeDialogOpen = false
+  let lockDialogOpen = false
 
-  // 关闭数据库
-  const commonCloseDatabase = async (options: any = {}) => {
-    const {cleanupFn, isCloseApp = false} = options
-    const doClose = async () => {
-      await kService.closeDatabase()
-      keeStore.isDbOpened = false
-      keeStore.dbInfo = null
-      keeStore.isChanged = false
-      keeStore.isNotSave = false
-      window.$message.success('Database successfully closed')
-
-      if (typeof cleanupFn === 'function') {
-        cleanupFn()
-      }
-
-      if (!isCloseApp) {
-        await router.replace({
-          name: 'HomeView',
-        })
-      }
-    }
-
-    if (keeStore.isNotSave) {
+  const closeDatabase = async (options: {cleanupFn?: () => void} = {}) => {
+    const {cleanupFn} = options
+    if (keeStore.isDbOpened && keeStore.isDirty) {
       // 防止重复弹窗
-      if (closeDialogOpen) {
+      if (lockDialogOpen) {
         return
       }
-      closeDialogOpen = true
+      lockDialogOpen = true
+      let shouldSave = false
       try {
-        await ElMessageBox.confirm(
-          'Do you want to save before closing?',
-          'Data not saved!',
-          {
-            confirmButtonText: 'Save and Close',
-            cancelButtonText: 'Close Without Save',
-            distinguishCancelAndClose: true,
-            showClose: true,
-            type: 'warning',
-          },
-        )
-        await commonSaveDatabase()
-        await doClose()
+        await ElMessageBox.confirm('Save changes before locking?', 'Unsaved changes', {
+          confirmButtonText: 'Save and Lock',
+          cancelButtonText: 'Discard and Lock',
+          distinguishCancelAndClose: true,
+          showClose: true,
+          type: 'warning',
+        })
+        shouldSave = true
       } catch (action) {
-        if (action === 'cancel') {
-          await doClose()
+        lockDialogOpen = false
+        // 关闭弹窗（X）视为取消锁定；“放弃”则继续锁定
+        if (action !== 'cancel') {
+          return
         }
-      } finally {
-        closeDialogOpen = false
       }
-      return
+      lockDialogOpen = false
+      if (shouldSave) {
+        try {
+          await db.save()
+        } catch (e) {
+          showError(e, 'Failed to save database')
+          return
+        }
+      }
     }
-    await doClose()
+
+    closeAllNoteWindows()
+    db.close()
+    window.$message.success('Database locked')
+
+    if (typeof cleanupFn === 'function') {
+      cleanupFn()
+    }
+
+    await router.replace({
+      name: 'HomeView',
+    })
   }
 
   return {
-    commonSaveDatabase,
-    commonCloseDatabase,
+    saveDatabase,
+    closeDatabase,
   }
 }

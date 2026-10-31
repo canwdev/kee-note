@@ -14,7 +14,7 @@
  * 避免更新“最后打开的 group”等小字段时重写整份数据库。
  */
 import { useSettingsStore } from '@/store/settings'
-import type { FileRef } from './backend/file-access'
+import { toPlainFileRef, type FileRef } from '@/core/file-access'
 
 const DB_NAME = 'kee-note-history'
 const DB_VERSION = 2
@@ -221,10 +221,20 @@ const putRecord = async (record: DbHistoryRecord): Promise<void> => {
   const db = await openDb()
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(META_STORE, 'readwrite')
-    transaction.objectStore(META_STORE).put(record)
     transaction.oncomplete = () => resolve()
     transaction.onerror = () => reject(transaction.error)
     transaction.onabort = () => reject(transaction.error)
+    try {
+      // 不可克隆的对象会同步抛 DataCloneError，此时事务需要显式中止
+      transaction.objectStore(META_STORE).put(record)
+    } catch (e) {
+      try {
+        transaction.abort()
+      } catch {
+        // 事务可能已结束，忽略
+      }
+      reject(e)
+    }
   })
 }
 
@@ -254,16 +264,70 @@ const putSnapshot = async (id: string, data: ArrayBuffer): Promise<void> => {
   })
 }
 
-/** handle 在某些环境下无法结构化克隆，此时退化为只保存文件快照 */
-const putRecordWithFallback = async (record: DbHistoryRecord) => {
-  try {
-    await putRecord(record)
-  } catch (e) {
-    if (record.fileRef?.kind !== 'handle') {
-      throw e
+/**
+ * 写入前把记录整理成可结构化克隆的纯数据：
+ * - 解开 Vue 响应式代理（Proxy 无法克隆，会抛 DataCloneError）
+ * - 只保留已知字段，避免调用方塞入其它不可克隆的值
+ */
+const toStorableRecord = (record: DbHistoryRecord): DbHistoryRecord => ({
+  id: String(record.id),
+  path: String(record.path ?? ''),
+  fileRef: toPlainFileRef(record.fileRef),
+  keyFileName: record.keyFileName,
+  keyFileData: record.keyFileData || null,
+  dbSize: record.dbSize,
+  createdAt: record.createdAt,
+  lastOpenedAt: record.lastOpenedAt,
+  lastGroupUuid: record.lastGroupUuid,
+})
+
+const isDataCloneError = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+  const name = (error as { name?: string }).name
+  return name === 'DataCloneError'
+}
+
+/**
+ * 按“字段重要性”逐级降级的写入候选：
+ * 1. 完整记录  2. 去掉 fileRef  3. 去掉 keyFileData  4. 两者都去掉
+ * 只有确实无法克隆时才降级，其它错误（如配额不足）原样抛出。
+ */
+const buildWriteCandidates = (record: DbHistoryRecord): DbHistoryRecord[] => {
+  const base = toStorableRecord(record)
+  const candidates: DbHistoryRecord[] = [base]
+  if (base.fileRef) {
+    candidates.push({ ...base, fileRef: null })
+  }
+  if (base.keyFileData) {
+    candidates.push({ ...base, keyFileData: null })
+    if (base.fileRef) {
+      candidates.push({ ...base, fileRef: null, keyFileData: null })
     }
-    console.warn('[history] failed to persist file handle, store snapshot only', e)
-    await putRecord({ ...record, fileRef: null })
+  }
+  return candidates
+}
+
+/** 写入元数据；若存在无法结构化克隆的字段则逐个降级，保证至少能记下基本信息 */
+const putRecordWithFallback = async (record: DbHistoryRecord): Promise<void> => {
+  const candidates = buildWriteCandidates(record)
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index]
+    try {
+      await putRecord(candidate)
+      if (index > 0) {
+        console.warn('[history] dropped non-cloneable fields when saving history', {
+          fileRef: candidate.fileRef ? 'kept' : 'dropped',
+          keyFileData: candidate.keyFileData ? 'kept' : 'dropped',
+        })
+      }
+      return
+    } catch (e) {
+      if (!isDataCloneError(e) || index === candidates.length - 1) {
+        throw e
+      }
+    }
   }
 }
 

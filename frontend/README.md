@@ -9,12 +9,15 @@ Tech stack: Vue 3 + Element Plus + [vgo-ui](https://github.com/canwdev/vgo-ui) +
 ## Features
 
 - Open / create KDBX4 databases directly from the browser (File System Access API)
-- Read & write the same file through a `FileSystemFileHandle` (save / auto-save)
+- Read & write the same file through a `FileSystemFileHandle`
+- The whole database lives in memory: edits are applied instantly and written
+  to disk only when you save (global save button / `Ctrl+S`), so interactive
+  operations never touch the file
 - **FileLite integration**: when `window.fileLiteSDK` is present it is preferred for
   open/save dialogs, file reads and writes, and `onOpen` / `getLaunch` launches
 - Password and key-file support (generate a random key file)
 - Groups, entries, Markdown notes, attachments, search, calendar & heatmap views
-- Import / export entries as JSON
+- Unsaved-change guard: `beforeunload` confirmation and a save prompt before locking
 
 ## Requirements
 
@@ -42,10 +45,15 @@ requires a secure context.
 
 ## Notes
 
-- File access is isolated in `src/utils/backend/file-access.ts`. It prefers
+- `src/core/database.ts` owns the in-memory `Kdbx` object and exposes a typed
+  API (`db.getGroupEntries()`, `db.saveEntryDetail()`, ...). Components call it
+  directly — there is no request/route layer for database operations.
+- Only open / create / save read or write the file (with a global loading
+  spinner and a cross-tab file lock). In-memory reads and edits are synchronous.
+- File access is isolated in `src/core/file-access.ts`. It prefers
   `window.fileLiteSDK`, falls back to File System Access API, and exposes
   `setFileAccessHooks()` for tests or alternative hosts (pick/read/write hooks).
 - KDBX4 Argon2 is provided by `hash-wasm` and runs in a Web Worker
-  (`src/utils/backend/argon2.ts` + `argon2-worker.ts`).
+  (`src/core/argon2.ts` + `argon2-worker.ts`).
 - The file handle only lives for the current page session. After a reload you
   need to pick the `.kdbx` file again (the password prompt is unchanged).

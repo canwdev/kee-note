@@ -1,8 +1,7 @@
 <script lang="ts" setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { kService } from '@/api'
-import { useKeeStore } from '@/store/kee-store'
+import { db } from '@/core/database'
 import { useSettingsStore } from '@/store/settings'
 import globalEventBus, { GlobalEvents } from '@/utils/bus'
 import {
@@ -19,26 +18,15 @@ import {
 import { AutoFormElPlus, AutoFormItemType } from '@canwdev/vgo-ui'
 import type { MixedFormItems } from '@canwdev/vgo-ui'
 import {
-  generateKeyFile,
-  getDatabaseFileRef,
-  getDatabaseFileName,
-  getDatabaseFilePath,
   getExternalFile,
   isFileSystemAccessSupported,
   onExternalFileOpen,
-  pickDatabaseFile,
-  pickDatabaseSaveFile,
-  pickKeyFile,
   requestFileRefPermission,
-  setDatabaseFileHandle,
-  setDatabaseFileRef,
-  setLastKeyFile,
-} from '@/utils/backend'
+} from '@/core/file-access'
 import { showError } from '@/utils/feedback'
 import moment from 'moment/moment'
 
 const router = useRouter()
-const keeStore = useKeeStore()
 
 const isCreateMode = ref(false)
 const isBusy = ref(false)
@@ -47,13 +35,12 @@ const isSupported = isFileSystemAccessSupported()
 const fileDisplayPath = (file: {name: string; path?: string}) => file.path || file.name
 
 const reSelectFileMessage = () => {
-  const fileName =
-    formModel.fileName || getDatabaseFilePath() || getDatabaseFileName() || '*.kdbx'
+  const fileName = formModel.fileName || db.getFilePath() || db.getFileName() || '*.kdbx'
   return `Please re-select the database file: ${fileName}`
 }
 
 const formModel = reactive({
-  fileName: getDatabaseFilePath() || getDatabaseFileName(),
+  fileName: db.getFilePath() || db.getFileName(),
   dbName: 'KeeNote',
   password: '',
   keyFileName: '',
@@ -84,7 +71,7 @@ onMounted(() => {
     } else {
       formModel.keyFileName = ''
       formModel.keyFileBuffer = null
-      setLastKeyFile(null)
+      db.setLastKeyFile(null)
       detachHistory()
     }
   })
@@ -196,7 +183,7 @@ const formItems = computed((): MixedFormItems[] => {
 
 const handleChooseFile = async () => {
   try {
-    const file = await pickDatabaseFile()
+    const file = await db.chooseFile()
     formModel.fileName = fileDisplayPath(file)
     formModel.password = ''
     detachHistory()
@@ -210,7 +197,7 @@ const handleChooseFile = async () => {
 const handleChooseCreateFile = async () => {
   try {
     const suggested = `${moment().format('YYYY-MM-DD')}.kdbx`
-    const file = await pickDatabaseSaveFile(suggested)
+    const file = await db.chooseSaveFile(suggested)
     formModel.fileName = fileDisplayPath(file)
     detachHistory()
   } catch (e: any) {
@@ -222,10 +209,9 @@ const handleChooseCreateFile = async () => {
 
 const handleChooseKeyFile = async () => {
   try {
-    const { name, buffer } = await pickKeyFile()
+    const { name, buffer } = await db.chooseKeyFile()
     formModel.keyFileName = name
     formModel.keyFileBuffer = buffer
-    setLastKeyFile(buffer)
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
       showError(e, 'Failed to read key file')
@@ -235,10 +221,9 @@ const handleChooseKeyFile = async () => {
 
 const handleGenerateKeyFile = async () => {
   try {
-    const result = await generateKeyFile(`${moment().format('YYYY-MM-DD')}.key`)
+    const result = await db.generateKeyFile(`${moment().format('YYYY-MM-DD')}.key`)
     formModel.keyFileName = result.path
     formModel.keyFileBuffer = result.buffer
-    setLastKeyFile(result.buffer)
     window.$message.success('Key file saved: ' + result.path)
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
@@ -250,7 +235,7 @@ const handleGenerateKeyFile = async () => {
 const clearKeyFile = () => {
   formModel.keyFileName = ''
   formModel.keyFileBuffer = null
-  setLastKeyFile(null)
+  db.setLastKeyFile(null)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -283,12 +268,12 @@ const restoreHistoryItem = async (
   formModel.password = ''
   formModel.keyFileName = item.keyFileName || ''
   formModel.keyFileBuffer = item.keyFileData || null
-  setLastKeyFile(item.keyFileData || null)
+  db.setLastKeyFile(item.keyFileData || null)
   setActiveHistoryId(item.id)
   historyActiveId.value = item.id
 
   if (item.fileRef) {
-    setDatabaseFileRef(item.fileRef)
+    db.setFileRef(item.fileRef)
     formModel.fileName = item.path || item.fileRef.name
     if (requestPermission && item.fileRef.kind === 'handle') {
       const granted = await requestFileRefPermission(item.fileRef)
@@ -299,7 +284,7 @@ const restoreHistoryItem = async (
       }
     }
   } else {
-    setDatabaseFileRef(null)
+    db.setFileRef(null)
     formModel.fileName = item.path
     window.$message.warning(`Please re-select the database file: ${item.path}`)
   }
@@ -332,7 +317,7 @@ const handleClearHistory = () => {
 }
 
 const checkProfile = async (query = {}) => {
-  if (!(await kService.checkDatabaseIsOpen())) {
+  if (!db.isOpen) {
     return
   }
   await router.replace({
@@ -352,11 +337,11 @@ const handleSubmit = async () => {
     window.$message.warning('Please input a password or choose a key file')
     return
   }
-  if (isCreateMode.value && !getDatabaseFileRef()) {
+  if (isCreateMode.value && !db.getFileRef()) {
     window.$message.warning('Please choose a save location')
     return
   }
-  if (!isCreateMode.value && !getDatabaseFileRef()) {
+  if (!isCreateMode.value && !db.getFileRef()) {
     window.$message.warning(reSelectFileMessage())
     return
   }
@@ -367,31 +352,28 @@ const handleSubmit = async () => {
   try {
     if (!isCreateMode.value) {
       // 刷新后 handle 权限可能失效，借用户点击的手势重新申请
-      await requestFileRefPermission(getDatabaseFileRef())
+      await requestFileRefPermission(db.getFileRef())
     }
     if (isCreateMode.value) {
-      await kService.createDatabase({
+      await db.createDatabase({
         name: formModel.dbName || 'New Database',
         password: formModel.password,
         keyFile: formModel.keyFileBuffer,
         keyFileName: formModel.keyFileName,
       })
-      formModel.fileName = getDatabaseFilePath() || formModel.fileName
+      formModel.fileName = db.getFilePath() || formModel.fileName
       window.$message.success('Database created: ' + formModel.fileName)
     } else {
-      await kService.openDatabase({
+      await db.open({
         password: formModel.password,
         keyFile: formModel.keyFileBuffer,
         keyFileName: formModel.keyFileName,
       })
     }
-    keeStore.isDbOpened = true
-    keeStore.isNotSave = false
     formModel.password = ''
     await refreshHistory()
     await checkProfile()
   } catch (e: any) {
-    keeStore.isDbOpened = false
     console.error(e)
     // kdbxweb throws a generic error for wrong password / corrupted file
     showError(e, 'Failed to open database')
@@ -407,9 +389,9 @@ const toggleCreate = () => {
   clearKeyFile()
   detachHistory()
   if (isCreateMode.value) {
-    setDatabaseFileHandle(null)
+    db.setFileRef(null)
   } else {
-    formModel.fileName = getDatabaseFilePath() || getDatabaseFileName()
+    formModel.fileName = db.getFilePath() || db.getFileName()
   }
 }
 

@@ -1,35 +1,22 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
-import { useModelWrapper } from '@/hooks/use-model-wrapper'
-import { kService } from '@/api'
+import { db } from '@/core/database'
 import { EntryItem } from '@/enum/kdbx'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import { formatDate } from '@/utils'
-import { ModalWindow } from '@canwdev/vgo-ui'
-import { openDetailWindow } from '@/hooks/use-detail-windows'
+import { openDetailWindow } from '@/hooks/use-note-windows'
 
 export default defineComponent({
-  name: 'DialogSearch',
+  name: 'SearchDatabaseView',
   components: {
-    ModalWindow,
     IconDisplay,
   },
-  props: {
-    visible: {
-      type: Boolean,
-      default: false,
-    },
-    icon: {
-      type: Number,
-      default: null,
-    },
-  },
-  setup(props, { emit }) {
-    const mVisible = useModelWrapper(props, emit, 'visible')
+  setup() {
     const searchKeyword = ref('')
     const isLoading = ref(false)
     const isShowSearchSettings = ref(false)
     const resultList = ref<EntryItem[]>([])
+    const searchInputRef = ref<{ focus: () => void } | null>(null)
 
     const handleSearch = async () => {
       if (isLoading.value) {
@@ -42,9 +29,7 @@ export default defineComponent({
       try {
         isLoading.value = true
 
-        const list = await kService.searchDatabase({
-          keyword: searchKeyword.value,
-        })
+        const list = db.searchDatabase(searchKeyword.value)
         resultList.value = list || []
       } catch (e) {
         resultList.value = []
@@ -57,9 +42,13 @@ export default defineComponent({
       openDetailWindow(item.uuid, item.title)
     }
 
+    onMounted(() => {
+      nextTick(() => searchInputRef.value?.focus())
+    })
+
     return {
-      mVisible,
       searchKeyword,
+      searchInputRef,
       handleSearch,
       resultList,
       formatDate,
@@ -72,13 +61,12 @@ export default defineComponent({
 </script>
 
 <template>
-  <ModalWindow v-model:visible="mVisible" title="Search Database" :mask-closable="false"
-    :init-win-options="{ width: '620px' }">
+  <div class="search-database">
     <div class="search-bar">
       <el-button @click="isShowSearchSettings = !isShowSearchSettings">
         <el-icon><span class="mdi mdi-cog" /></el-icon>
       </el-button>
-      <el-input placeholder="Search keyword in title or notes" clearable v-model="searchKeyword"
+      <el-input ref="searchInputRef" placeholder="Search keyword in title or notes" clearable v-model="searchKeyword"
         @keyup.enter="handleSearch" />
       <el-button :disabled="isLoading" type="primary" @click="handleSearch">Search</el-button>
     </div>
@@ -102,10 +90,18 @@ export default defineComponent({
         </div>
       </div>
     </div>
-  </ModalWindow>
+  </div>
 </template>
 
 <style lang="scss" scoped>
+.search-database {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--vgo-space-3);
+}
+
 .search-bar {
   display: flex;
   align-items: center;
@@ -122,8 +118,9 @@ export default defineComponent({
 }
 
 .search-results {
+  flex: 1;
+  min-height: 0;
   margin-top: var(--vgo-space-3);
-  max-height: 55vh;
   overflow: auto;
 }
 

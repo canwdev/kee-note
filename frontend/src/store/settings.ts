@@ -17,9 +17,6 @@ interface IStore {
   calendarShowTitle: boolean
 
   isSidebarCollapsed: boolean
-
-  // 自动保存
-  enableAutoSave: boolean
 }
 
 export const useSettingsStore = defineStore('settingsStore', {
@@ -30,14 +27,12 @@ export const useSettingsStore = defineStore('settingsStore', {
 
       isSaveHistory: true,
 
-      isCalendarView: true,
+      isCalendarView: false,
       calendarWeekIndex: -1,
       calendarShowLunar: true,
       calendarShowTitle: true,
 
       isSidebarCollapsed: false,
-
-      enableAutoSave: true,
     }
   },
   actions: {},

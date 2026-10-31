@@ -1,10 +1,10 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
-import { getAttachment, renameAttachment } from '@/api/keepass'
+import { db } from '@/core/database'
 import { useModelWrapper } from '@/hooks/use-model-wrapper'
 import mime from 'mime'
 import DialogInput from '@/components/NoteViews/Dialogs/DialogInput.vue'
-import { aLinkDownload } from '@/utils/export-import'
+import { aLinkDownload } from '@/utils/download'
 import { ModalWindow } from '@canwdev/vgo-ui'
 
 export default defineComponent({
@@ -102,10 +102,7 @@ export default defineComponent({
     })
 
     const updatePreview = async () => {
-      const blob = await getAttachment({
-        uuid: uuid.value,
-        filename: filename.value,
-      })
+      const blob = db.getAttachment(uuid.value, filename.value)
 
       fileMimeType.value = mime.getType(filename.value) ?? ''
       blobData.value = blob

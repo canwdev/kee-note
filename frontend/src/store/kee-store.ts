@@ -1,7 +1,4 @@
-import {checkDatabaseIsNotSave} from '@/api/keepass'
-
 type DbInfo = {
-  isNotSave: boolean
   header: {
     compression: number
     crsAlgorithm: number
@@ -20,31 +17,29 @@ type DbInfo = {
 }
 
 type KeeStore = {
-  // 数据库是否开启（服务端）
+  // 数据库是否已解锁
   isDbOpened: boolean
-  // 数据库是否修改并且没有保存（服务端）
-  isNotSave: boolean
+  // 内存中是否有尚未写入文件的修改（唯一需要保存的依据）
+  isDirty: boolean
   // 数据库信息
   dbInfo: DbInfo | null
-  // 前端本地是否有未保存的修改
-  isChanged: boolean
 }
 
+/**
+ * 数据库会话状态。真正的数据由 `@/core/database` 的内存对象持有，
+ * 这里只保存 UI 需要的响应式副本。
+ */
 export const useKeeStore = defineStore('keeStore', {
   state: (): KeeStore => {
     return {
       isDbOpened: false,
-      isNotSave: false,
+      isDirty: false,
       dbInfo: null,
-      isChanged: false,
     }
   },
   getters: {
     recycleBinUuid: (state): string | null => {
-      if (state.dbInfo) {
-        return state.dbInfo.meta?.recycleBinUuid?.id || null
-      }
-      return null
+      return state.dbInfo?.meta?.recycleBinUuid?.id || null
     },
   },
   actions: {},

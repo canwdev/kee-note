@@ -1,31 +1,21 @@
 <script lang="ts">
-import { kService } from '@/api'
+import { db } from '@/core/database'
 import { EntryItem } from '@/enum/kdbx'
-import keepassIcons from '@/assets/icons'
-import globalEventBus, { GlobalEvents, saveDatabaseAsync } from '@/utils/bus'
-import { useBeforeUnload } from '@/hooks/use-changed'
+import globalEventBus, { GlobalEvents } from '@/utils/bus'
 import MarkdownEditor from '@/components/NoteViews/Detail/MarkdownEditor.vue'
 import DialogEntryIconColor from '@/components/NoteViews/Dialogs/DialogEntryIconColor.vue'
 import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
 import AttachmentBox from '@/components/NoteViews/Detail/AttachmentBox.vue'
-import { getEntryItemUpdateParams } from '@/utils/export-import'
 import { useEditorSettingsStore } from '@/store/editor'
-import { useKeeStore } from '@/store/kee-store'
-import { useSettingsStore } from '@/store/settings'
-import { useKeeNoteSaveClose } from '@/hooks/use-keenote'
-import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
 import {
-  detailWindows,
-  setDetailWindowDirty,
+  noteWindows,
   updateDetailWindowInfo,
-  updateDetailWindowSaveState,
-} from '@/hooks/use-detail-windows'
+} from '@/hooks/use-note-windows'
 
 export default defineComponent({
   name: 'DetailView',
   components: {
-    MenuTrigger,
     MarkdownEditor,
     DialogEntryIconColor,
     IconDisplay,
@@ -41,18 +31,13 @@ export default defineComponent({
   emits: ['close'],
   setup(props, { emit }) {
     const entryDetail = ref<EntryItem | null>(null)
-    const entryDetailTimes = reactive([0, 0])
-    const isChanged = ref(false)
-
-    const keeStore = useKeeStore()
-    const settingsStore = useSettingsStore()
-
     const editorSettingsStore = useEditorSettingsStore()
 
-    const { commonSaveDatabase } = useKeeNoteSaveClose()
+    // 载入/替换详情时避免 watcher 把数据再写回一次
+    let isSyncingFromDb = false
 
     onMounted(() => {
-      getEntryDetail()
+      loadEntryDetail()
       window.addEventListener('keydown', listenShortcuts)
     })
     onBeforeUnmount(() => {
@@ -60,10 +45,10 @@ export default defineComponent({
     })
 
     // 多个详情窗口同时挂载时会各自监听 window 的 keydown，
-    // 只让当前激活的窗口响应，避免一次 Ctrl+S 触发多次并发保存。
+    // 只让当前激活的窗口响应，避免快捷键作用到后台窗口。
     const isActiveDetailWindow = () => {
-      const win = detailWindows.findByKey(props.uuid)
-      return Boolean(win && detailWindows.activeId === win.id)
+      const win = noteWindows.findByKey(props.uuid)
+      return Boolean(win && noteWindows.activeId === win.id)
     }
 
     const listenShortcuts = (event) => {
@@ -71,18 +56,9 @@ export default defineComponent({
         return
       }
       if (event.ctrlKey || event.metaKey) {
-        const key = String.fromCharCode(event.which).toLowerCase()
-        switch (key) {
-          case 's':
-            event.preventDefault()
-            handleSave()
-            break
-          case '¿': // Keyboard symbol: "/"
-            isShowPreviewModal.value = true
-            event.preventDefault()
-            break
-          default:
-            return
+        if (['/', 'Divide'].includes(event.key) || event.code === 'NumpadDivide') {
+          isShowPreviewModal.value = true
+          event.preventDefault()
         }
       } else if (event.code === 'Escape') {
         if (isShowPreviewModal.value || isShowIconEdit.value) {
@@ -92,18 +68,14 @@ export default defineComponent({
       }
     }
 
-    const markChanged = (changed = true) => {
-      isChanged.value = changed
-      setDetailWindowDirty(props.uuid, changed)
-    }
-
     const updateWindowInfo = () => {
       const detail = entryDetail.value
       if (!detail) {
         return
       }
 
-      const title = detail.title || 'Note'
+      // 标题编辑发生在 fieldsV2.Title，窗口标题需要跟随
+      const title = detail.fieldsV2?.Title || detail.title || 'Note'
       updateDetailWindowInfo(props.uuid, {
         title: detail.groupName ? `${detail.groupName}/${title}` : title,
         icon: detail.icon,
@@ -112,128 +84,45 @@ export default defineComponent({
       })
     }
 
-    const getEntryDetail = async () => {
-      entryDetail.value = await kService.getEntryDetail({ uuid: props.uuid })
+    /** 从内存数据库读取（或重新读取）详情 */
+    const loadEntryDetail = () => {
+      isSyncingFromDb = true
+      entryDetail.value = db.getEntryDetail(props.uuid)
       updateWindowInfo()
       nextTick(() => {
-        markChanged(false)
+        isSyncingFromDb = false
       })
     }
 
-    useBeforeUnload(() => isChanged.value)
-
-    watch(entryDetail, (val) => {
-      if (!val) {
-        return
-      }
-      const { creationTime, lastModTime } = val
-      entryDetailTimes[0] = new Date(creationTime).getTime()
-      entryDetailTimes[1] = new Date(lastModTime).getTime()
-    })
-
+    // 任何编辑都立即写回内存数据库（不落盘），由全局 Ctrl+S 统一保存
     watch(
       entryDetail,
-      () => {
-        markChanged(true)
+      (val) => {
+        if (!val || isSyncingFromDb) {
+          return
+        }
+        const updated = db.saveEntryDetail(val)
+        globalEventBus.emit(GlobalEvents.ENTRY_UPDATED, updated)
         updateWindowInfo()
       },
       { deep: true },
     )
 
-    const handleSave = async () => {
-      if (!entryDetail.value) {
-        return
-      }
-      if (isChanged.value) {
-        entryDetail.value.creationTime = new Date(entryDetailTimes[0])
-
-        const params = getEntryItemUpdateParams({
-          uuid: entryDetail.value.uuid,
-          entryDetail: entryDetail.value,
-          isSetModTime: false,
-        })
-
-        await kService.updateEntry(params)
-        await syncAndSave()
-
-        return
-      }
-      if (keeStore.isNotSave) {
-        await commonSaveDatabase()
-        return
-      }
-    }
-
-    // 处理不同保存条件下的按钮样式
-    const saveBtnInfo = computed((): any => {
-      if (settingsStore.enableAutoSave || isChanged.value) {
-        return {
-          disabled: !isChanged.value,
-          label: settingsStore.enableAutoSave ? 'Save' : 'Done',
+    // 保持 Date 对象引用稳定，避免每次渲染都生成新的 Date 触发控件更新
+    const creationTime = computed({
+      get: () => entryDetail.value?.creationTime || new Date(),
+      set: (value: Date | null) => {
+        if (entryDetail.value && value) {
+          entryDetail.value.creationTime = value
         }
-      }
-      if (keeStore.isNotSave) {
-        return {
-          type: 'primary',
-          plain: false,
-          disabled: false,
-          label: 'Save',
-        }
-      }
-      return {
-        disabled: true,
-        label: 'Done',
-      }
+      },
     })
 
-    watch(
-      saveBtnInfo,
-      (info) => {
-        updateDetailWindowSaveState(props.uuid, {
-          disabled: Boolean(info.disabled),
-          label: info.label || 'Save',
-          primary: info.type === 'primary',
-        })
-      },
-      { immediate: true, deep: true },
-    )
-
-    const isBackRefresh = ref(false)
-    const syncAndSave = async () => {
-      await getEntryDetail()
-      await saveDatabaseAsync()
-      isBackRefresh.value = true
-    }
+    const lastModTime = computed(() => entryDetail.value?.lastModTime || new Date())
 
     const complexEditorRef = ref()
     const isShowIconEdit = ref(false)
     const isShowPreviewModal = ref(false)
-
-    const menuOptions = computed((): any[] => {
-      return [
-        {
-          label: 'Preview (Ctrl+/)',
-          icon: 'mdi-eye-outline',
-          onClick: async () => {
-            isShowPreviewModal.value = true
-          },
-        },
-        {
-          label: 'Edit Icon & Color',
-          icon: 'mdi-palette-outline',
-          onClick: async () => {
-            isShowIconEdit.value = true
-          },
-        },
-        !editorSettingsStore.isAdvancedEditor && {
-          label: 'Enable HyperMD Editor',
-          icon: 'mdi-text-box-edit-outline',
-          onClick: async () => {
-            editorSettingsStore.isAdvancedEditor = true
-          },
-        },
-      ].filter(Boolean)
-    })
 
     const titleInputRef = ref()
 
@@ -241,34 +130,20 @@ export default defineComponent({
       emit('close')
     }
 
-    onBeforeUnmount(() => {
-      if (isBackRefresh.value) {
-        globalEventBus.emit(GlobalEvents.REFRESH_ENTRY_LIST)
-      }
-    })
-
     return {
-      keeStore,
-      settingsStore,
       editorSettingsStore,
       entryDetail,
-      isChanged,
-      markChanged,
       handleBack,
-      entryDetailTimes,
-      handleSave,
-      commonSaveDatabase,
-      keepassIcons,
+      creationTime,
+      lastModTime,
       complexEditorRef,
       showEditorSettings() {
         complexEditorRef.value.showSettings()
       },
       isShowIconEdit,
-      menuOptions,
       isShowPreviewModal,
       titleInputRef,
-      syncAndSave,
-      saveBtnInfo,
+      loadEntryDetail,
     }
   },
 })
@@ -282,18 +157,21 @@ export default defineComponent({
           <div class="detail-infos">
             <div class="detail-info-row">
               <div class="vgo-u-flex-wrap-center">
-                <MenuTrigger :items="menuOptions">
-                  <button class="vgo-button vgo-button--icon" title="Note actions">
-                    <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor"
-                      :fg-color="entryDetail.fgColor" :size="20" />
-                  </button>
-                </MenuTrigger>
-                <el-date-picker v-model="entryDetailTimes[0]" type="datetime" @update:model-value="markChanged(true)"
-                  title="Create Time" />
-                <el-date-picker v-model="entryDetailTimes[1]" type="datetime" disabled title="Update Time" />
+                <button class="vgo-button vgo-button--icon vgo-entry-icon-button" title="Change Icon & Color"
+                  @click="isShowIconEdit = true">
+                  <IconDisplay :icon="entryDetail.icon" :bg-color="entryDetail.bgColor" :fg-color="entryDetail.fgColor"
+                    :size="20" />
+                </button>
+                <el-date-picker v-model="creationTime" type="datetime" title="Create Time" />
+                <el-date-picker :model-value="lastModTime" type="datetime" disabled title="Update Time" />
               </div>
 
               <div class="vgo-u-flex-wrap-center">
+
+                <button class="vgo-button vgo-button--icon" @click="isShowPreviewModal = true" title="Preview (Ctrl+/)">
+                  <span class="mdi mdi-eye-outline" />
+                </button>
+
                 <button class="vgo-button vgo-button--icon"
                   @click="editorSettingsStore.isShowMore = !editorSettingsStore.isShowMore" title="Toggle more details">
                   <span v-if="editorSettingsStore.isShowMore" class="mdi mdi-dots-horizontal-circle" />
@@ -303,6 +181,11 @@ export default defineComponent({
                 <button v-if="editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon"
                   @click="showEditorSettings" title="Editor Settings">
                   <span class="mdi mdi-cog-outline" />
+                </button>
+
+                <button v-if="!editorSettingsStore.isAdvancedEditor" class="vgo-button vgo-button--icon"
+                  @click="editorSettingsStore.isAdvancedEditor = true" title="Enable HyperMD Editor">
+                  <span class="mdi mdi-text-box-edit-outline" />
                 </button>
               </div>
             </div>
@@ -327,7 +210,7 @@ export default defineComponent({
                   </div>
                 </div>
 
-                <AttachmentBox :entry-detail="entryDetail" @dataUpdated="syncAndSave" />
+                <AttachmentBox :entry-detail="entryDetail" @dataUpdated="loadEntryDetail" />
               </div>
             </el-collapse-transition>
           </div>
@@ -402,6 +285,12 @@ export default defineComponent({
           align-items: center;
           justify-content: space-between;
           gap: 8px;
+
+          .vgo-entry-icon-button {
+            padding: 0;
+            line-height: 0;
+            cursor: pointer;
+          }
         }
 
         @media screen and (max-height: 500px) {
@@ -438,6 +327,7 @@ export default defineComponent({
               margin-right: 5px;
               min-width: 70px;
               text-align: right;
+              font-size: 12px;
             }
           }
         }

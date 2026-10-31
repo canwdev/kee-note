@@ -41,10 +41,14 @@ export default defineComponent({
 <template>
   <div
     class="icon-display"
-    :style="{height: size + 'px', width: size + 'px', backgroundColor: bgColor}"
+    :style="{
+      height: size + 'px',
+      width: size + 'px',
+      backgroundColor: bgColor,
+      '--icon-fg-color': fgColor || 'transparent',
+    }"
     :title="String(icon)"
   >
-    <span v-if="fgColor" class="color-fg" :style="[{background: fgColor}]"></span>
     <img :src="iconSrc" :class="{'is-pixel': isPixel}" :alt="String(icon)" />
   </div>
 </template>
@@ -56,15 +60,14 @@ export default defineComponent({
   border-radius: 4px;
   vertical-align: bottom;
 
-  .color-fg {
+  &::before {
+    box-sizing: border-box;
     position: absolute;
-    top: -3px;
-    right: -3px;
-    display: block;
-    border-radius: 50%;
-    width: 8px;
-    height: 8px;
-    //border: 1px solid rgba(0, 0, 0, 0.3);
+    inset: 0;
+    border: 2px solid var(--icon-fg-color);
+    border-radius: inherit;
+    content: '';
+    pointer-events: none;
   }
 
   img {

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, PropType } from 'vue'
 import { EntryItem } from '@/enum/kdbx'
-import { getAttachment, removeAttachment, renameAttachment, uploadAttachment } from '@/api/keepass'
+import { db } from '@/core/database'
 import AttachmentPreview from '@/components/NoteViews/Detail/AttachmentPreview.vue'
 import DialogInput from '@/components/NoteViews/Dialogs/DialogInput.vue'
 import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
@@ -30,10 +30,7 @@ export default defineComponent({
     }
 
     const handleRemoveItem = async (filename) => {
-      await removeAttachment({
-        uuid: entryDetail.value.uuid,
-        filename,
-      })
+      db.removeAttachment(entryDetail.value.uuid, filename)
 
       emit('dataUpdated')
     }
@@ -51,11 +48,11 @@ export default defineComponent({
         files.push(file)
       }
 
-      await uploadAttachment(entryDetail.value.uuid, files)
+      await db.uploadAttachment(entryDetail.value.uuid, files)
       emit('dataUpdated')
     }
 
-    const editingFilename = ref(null)
+    const editingFilename = ref<string>('')
     const getMenuOptions = (item) => {
       return [
         {
@@ -80,11 +77,7 @@ export default defineComponent({
 
     const isShowRenameDialog = ref(false)
     const handleRename = async (name) => {
-      await renameAttachment({
-        uuid: entryDetail.value.uuid,
-        filename: editingFilename.value,
-        newFilename: name,
-      })
+      db.renameAttachment(entryDetail.value.uuid, editingFilename.value, name)
       emit('dataUpdated')
     }
 
@@ -106,7 +99,7 @@ export default defineComponent({
 <template>
   <div class="attachment-box">
     <div class="vgo-u-flex-wrap-center">
-      <span>Attachments</span>
+      <label>Attachments</label>
       <el-button-group v-for="(item, index) in entryDetail.attachmentNames" :key="item">
         <el-button @click="handlePreviewItem(item, index)">{{ item }}</el-button>
 
@@ -133,5 +126,9 @@ export default defineComponent({
 <style lang="scss" scoped>
 .attachment-box {
   margin-top: 8px;
+
+  label {
+    font-size: 12px;
+  }
 }
 </style>

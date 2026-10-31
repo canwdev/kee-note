@@ -2,7 +2,7 @@
 import {ref} from 'vue'
 import {useModelWrapper} from '@/hooks/use-model-wrapper'
 import {GroupItem} from '@/enum/kdbx'
-import {kService} from '@/api'
+import {db} from '@/core/database'
 import {ModalWindow} from '@canwdev/vgo-ui'
 
 export default defineComponent({
@@ -28,7 +28,7 @@ export default defineComponent({
 
     const groupTree = ref<GroupItem[]>([])
     const getGroupTree = async () => {
-      groupTree.value = await kService.getGroupTree()
+      groupTree.value = db.getGroupTree()
     }
 
     watch(mVisible, (val) => {

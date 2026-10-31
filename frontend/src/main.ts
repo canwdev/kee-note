@@ -34,6 +34,8 @@ import router from './router'
 import App from './App.vue'
 import {createPinia} from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
+import {useSettingsStore} from '@/store/settings'
+import {useEditorSettingsStore} from '@/store/editor'
 import './styles/base.scss'
 
 const app = createApp(App)
@@ -43,5 +45,19 @@ app.use(ElementPlus)
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 app.use(pinia)
+
+// 旧版本的默认值是「日历视图 + 折叠详情」，持久化数据会让新默认值失效。
+// 首次运行时做一次性迁移，之后仍以用户自己的设置为准。
+const UI_DEFAULTS_MIGRATION_KEY = 'kee-note-ui-defaults-v1'
+try {
+  if (!localStorage.getItem(UI_DEFAULTS_MIGRATION_KEY)) {
+    useSettingsStore().isCalendarView = false
+    useEditorSettingsStore().isShowMore = true
+    localStorage.setItem(UI_DEFAULTS_MIGRATION_KEY, '1')
+  }
+} catch (e) {
+  console.warn('[settings] failed to migrate UI defaults', e)
+}
+
 app.use(router)
 app.mount('#app')

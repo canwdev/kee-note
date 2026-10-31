@@ -1,13 +1,11 @@
 import {useKeeStore} from '@/store/kee-store'
-import {changeCredentials} from '@/api/keepass'
+import {db} from '@/core/database'
 import globalEventBus, {GlobalEvents} from '@/utils/bus'
-import {useSettingsStore} from '@/store/settings'
 import {VgoOptionType} from '@canwdev/vgo-ui'
 import type {VgoOptionItem} from '@canwdev/vgo-ui'
 import {showInputPrompt} from '@/components/CommonUI/input-prompt'
 
 export const useKdbxOptions = (mVisible) => {
-  const settingsStore = useSettingsStore()
   const keeStore = useKeeStore()
 
   const kdbxConfigOption = computed((): VgoOptionItem => {
@@ -24,13 +22,6 @@ export const useKdbxOptions = (mVisible) => {
       label: 'Kdbx Config',
       key: 'kdbx',
       children: [
-        {
-          label: 'Auto Save',
-          subtitle: `Automatically write to the local database file`,
-          key: 'enableAutoSave',
-          store: settingsStore,
-          type: VgoOptionType.SWITCH,
-        },
         {
           label: 'Database Info',
           subtitle: `KDBX Version: ${dbVersion}`,
@@ -77,7 +68,7 @@ export const useKdbxOptions = (mVisible) => {
                 },
               })
               if (password2) {
-                await changeCredentials({password: password2})
+                await db.changeCredentials({password: password2})
                 window.$message.success('Database password changed!')
                 globalEventBus.emit(GlobalEvents.CLOSE_DATABASE)
                 mVisible.value = false

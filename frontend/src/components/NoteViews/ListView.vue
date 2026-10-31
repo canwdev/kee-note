@@ -8,7 +8,7 @@ import IconDisplay from '@/components/NoteViews/IconDisplay.vue'
 import { useCommonActions } from '@/components/NoteViews/use-common-actions'
 import DialogEntryPreview from '@/components/NoteViews/Dialogs/DialogEntryPreview.vue'
 import MenuTrigger from '@/components/CommonUI/MenuTrigger.vue'
-import { openDetailWindow } from '@/hooks/use-detail-windows'
+import { openDetailWindow } from '@/hooks/use-note-windows'
 
 export default defineComponent({
   components: {
