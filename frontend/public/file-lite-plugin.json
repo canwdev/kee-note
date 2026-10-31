@@ -1,0 +1,12 @@
+{
+  "name": "KeeNote",
+  "repo": "https://github.com/canwdev/kee-note",
+  "description": "A secure, local-first note & password manager for the browser, built on [KeePass KDBX](https://keepass.info/help/kb/kdbx_4.html) files and [kdbxweb](https://github.com/keeweb/kdbxweb). Everything runs client-side — no server, no telemetry. Your `.kdbx` database never leaves your machine.",
+  "entry": "index.html",
+  "icon": "favicon.png",
+  "openWith": [
+    ".kdbx"
+  ],
+  "singleInstance": false,
+  "version": "4.4.1"
+}
